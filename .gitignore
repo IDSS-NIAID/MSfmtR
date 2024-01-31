@@ -3,6 +3,9 @@
 .RData
 .Ruserdata
 *.RProj
+*.RData
 
-data.lnk
+data
 data/
+
+*.log
