@@ -1,3 +1,5 @@
+.DS_Store
+
 .Rproj.user
 .Rhistory
 .RData
@@ -7,5 +9,6 @@
 
 data
 data/
+output/
 
 *.log
