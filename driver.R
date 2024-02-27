@@ -16,6 +16,11 @@ files <- file.path('data', dirs) |>
   grep(pattern = 'MSStats.tsv', value = TRUE)
 paths <- file.path('data', dirs, files)
 
+# format sytles
+protein_header <- createStyle(fgFill = "#A7CDF0")
+protein_rows   <- createStyle(fgFill = "#DDEBF7")
+peptide_header <- createStyle(fgFill = "#F0CBA8")
+peptide_rows   <- createStyle(fgFill = "#FCE4D6")
 
 foreach(j=1:length(paths)) %do%
 {
@@ -136,14 +141,40 @@ foreach(j=1:length(paths)) %do%
         writeData(wb = wb, sheet = dirs[j], startRow = nextRow, startCol = 1, rowNames = FALSE,
                   colNames = i == 1)
     
-      # adjust for column names
-      nextRow <- nextRow + as.numeric(i == 1)
-    
+      # adjustment and formatting for column names on the first protein
+      if(i == 1)
+      {
+        nextRow <- nextRow + 1
+        
+        addStyle(wb = wb, sheet = dirs[j], style = protein_header,
+                 rows = 1, cols = 1:(dim(proteins)[2] - 1),
+                 gridExpand = TRUE)
+      }
+      
+      # format new protein row
+      addStyle(wb = wb, sheet = dirs[j], style = protein_rows,
+               rows = nextRow, cols = 1:(dim(proteins)[2] - 1),
+               gridExpand = TRUE)
+      
+      # add peptides
       proteins$peptides[[i]] %>%
         select(-PROTEIN) %>%
         writeData(wb = wb, sheet = dirs[j], startRow = nextRow + 1, startCol = 2, rowNames = FALSE)
-      groupRows(wb, dirs[j], nextRow + 1:(dim(proteins$peptides[[i]]) + 1)[1], hidden = TRUE)
+      
+      # format peptides
+      addStyle(wb = wb, sheet = dirs[j], style = peptide_header,
+               rows = nextRow + 1,
+               cols = 2:dim(peptides)[2],
+               gridExpand = TRUE)
+      addStyle(wb = wb, sheet = dirs[j], style = peptide_rows,
+               rows = nextRow + 2:(dim(proteins$peptides[[i]])[1] + 1),
+               cols = 2:dim(proteins$peptides[[i]])[2],
+               gridExpand = TRUE)
+      
+      # group and hide peptides
+      groupRows(wb, dirs[j], nextRow + 1:(dim(proteins$peptides[[i]])[1] + 1), hidden = TRUE)
     
+      # update next row
       nextRow <- nextRow + dim(proteins$peptides[[i]])[1] + 2
     }
   
