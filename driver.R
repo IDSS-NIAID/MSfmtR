@@ -5,15 +5,17 @@ library(dplyr)
 library(tidyr)
 library(purrr)
 library(readr)
+library(stringr)
 
 library(openxlsx)
 
 library(foreach)
+library(doParallel)
 
 dirs <- c('aspinwallja-20230825-PI1', 'aspinwallja-20230825-PI2', 'aspinwallja-20230825-PI3')
 files <- file.path('data', dirs) |>
   list.files() |>
-  grep(pattern = 'MSStats.tsv', value = TRUE)
+  grep(pattern = 'tsv', value = TRUE)
 paths <- file.path('data', dirs, files)
 
 # format sytles
@@ -22,8 +24,20 @@ protein_rows   <- createStyle(fgFill = "#DDEBF7")
 peptide_header <- createStyle(fgFill = "#F0CBA8")
 peptide_rows   <- createStyle(fgFill = "#FCE4D6")
 
+# register parallel backend
+cl <- makeCluster(length(dirs))
+registerDoParallel(cl)
+
+# do work
 foreach(j=1:length(paths)) %do%
 {
+  require(MSstats)
+  require(tidyr)
+  require(purrr)
+  require(readr)
+  require(stringr)
+  require(openxlsx)
+  
   if(!file.exists(paste0('output/', dirs[j], '.RData')))
   {
     # Load and process the data
@@ -66,12 +80,12 @@ foreach(j=1:length(paths)) %do%
     ###################################################################
   
     # calculate peptide stats
-    peptides <- data$FeatureLevelData %>%
+    peptides <- data$FeatureLevelData[1:200,] %>%
     
       rename(abund = newABUNDANCE) %>% # newABUNDANCE is the normalized abundances
-    
-      group_by(PROTEIN, PEPTIDE, TRANSITION, GROUP) %>%
-    
+      
+      group_by(PROTEIN, FEATURE, GROUP) %>%
+      
       summarize(abund = median(abund, na.rm = TRUE),
                 cv = sd(abund, na.rm = TRUE) / mean(abund, na.rm = TRUE) * 100) %>%
     
@@ -83,18 +97,46 @@ foreach(j=1:length(paths)) %do%
   
   
     # Extract peptide data
-    peptides <- data$FeatureLevelData %>%
+    peptides <- data$FeatureLevelData[1:200,] %>%
     
       rename(abund = newABUNDANCE) %>%
     
-      mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')')) %>%
+      mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
+             
+             # split modifications out into a different column
+             Modification = map_chr(PEPTIDE, ~ 
+                                             {
+                                               openMod <- str_locate_all(.x, fixed('[')) %>%
+                                                 unlist() %>%
+                                                 as.vector() %>%
+                                                 unique()
+                                               closeMod <- str_locate_all(.x, fixed(']')) %>%
+                                                 unlist() %>%
+                                                 as.vector() %>%
+                                                 unique()
+                                               
+                                               if(length(openMod) > 0)
+                                               {
+                                                 mod <- substr(.x, openMod[1], closeMod[1]) %>%
+                                                   paste(collapse = ';')
+                                               }else{
+                                                 mod <- ''
+                                               }
+                                               
+                                               return(mod)
+                                             }),
+             
+             PEPTIDE = map_chr(PEPTIDE, ~ strsplit(as.character(.x),
+                                                   split = '_', fixed = TRUE)[[1]][1] %>%
+                                 gsub(pattern = '\\[.*?\\]', replacement = ''))) %>%
+      
     
-      select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, id, abund) %>%
+      select(PROTEIN, PEPTIDE, Modification, TRANSITION, FEATURE, id, abund) %>%
     
       pivot_wider(names_from = id, values_from = abund) %>%
     
       # merge stats into peptides
-      right_join(peptides, by = c('PROTEIN', 'PEPTIDE', 'TRANSITION'))
+      left_join(peptides, by = c('PROTEIN', 'FEATURE'))
   
   
     # calculate protein stats
@@ -110,9 +152,10 @@ foreach(j=1:length(paths)) %do%
     
       mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
              blank1 = '',
-             blank2 = '') %>%
+             blank2 = '',
+             blank3 = '') %>%
     
-      select(Protein, blank1, blank2, TotalGroupMeasurements, LogIntensities, id) %>%
+      select(Protein, blank1, blank2, blank3, TotalGroupMeasurements, LogIntensities, id) %>%
       
       pivot_wider(names_from = id, values_from = LogIntensities) %>%
     
@@ -120,7 +163,8 @@ foreach(j=1:length(paths)) %do%
     
       left_join(proteins, by = c('Protein' = 'Protein'))
   
-    names(proteins)[2:3] <- ''
+    # remove "blank*" column names
+    names(proteins)[grep('blank', names(proteins))] <- ''
     save(data, proteins, peptides, file = paste0('output/', dirs[j], '.RData'))
   }else{
     load(paste0('output/', dirs[j], '.RData'))
@@ -182,4 +226,7 @@ foreach(j=1:length(paths)) %do%
     #openXL(wb)
     saveWorkbook(wb, paste0('output/', dirs[j], '.xlsx'))
   }
+  
+  TRUE
 }
+
