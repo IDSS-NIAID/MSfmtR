@@ -13,12 +13,12 @@ library(foreach)
 library(doParallel)
 
 dirs <- c('aspinwallja-20230825-PI1', 'aspinwallja-20230825-PI2', 'aspinwallja-20230825-PI3')
-files <- file.path('data', dirs) |>
-  list.files() |>
-  grep(pattern = 'tsv', value = TRUE)
+files <- map_chr(dirs, ~ file.path('data', .x) |>
+                   list.files() |>
+                   grep(pattern = 'tsv', value = TRUE))
 paths <- file.path('data', dirs, files)
 
-# format sytles
+# format styles
 protein_header <- createStyle(fgFill = "#A7CDF0")
 protein_rows   <- createStyle(fgFill = "#DDEBF7")
 peptide_header <- createStyle(fgFill = "#F0CBA8")
@@ -29,24 +29,36 @@ cl <- makeCluster(length(dirs))
 registerDoParallel(cl)
 
 # do work
-foreach(j=1:length(paths)) %do%
+foreach(j=1:length(paths)) %dopar%
 {
   require(MSstats)
+  require(dplyr)
   require(tidyr)
   require(purrr)
   require(readr)
   require(stringr)
   require(openxlsx)
   
-  if(!file.exists(paste0('output/', dirs[j], '.RData')))
+  if(file.exists(paste0('output/', dirs[j], '_processed.RData')))
   {
-    # Load and process the data
-    data <- read_delim(paths[j],
-                       delim = "\t", col_names = TRUE) %>%
-      SpectronauttoMSstatsFormat() %>%
-      dataProcess()
+    load(paste0('output/', dirs[j], '_processed.RData'))
+  }else{
+    if(file.exists(paste0('output/', dirs[j], '_msstats.RData')))
+    {
+      load(paste0('output/', dirs[j], '_msstats.RData'))
+    }else{
+      ########## MSStats step ##########
+      # Load and process the data
+      data <- read_delim(paths[j],
+                         delim = "\t", col_names = TRUE) %>%
+        SpectronauttoMSstatsFormat() %>%
+        dataProcess()
+      
+      save(data, file = paste0('output/', dirs[j], '_msstats.RData'))
+    }
   
   
+    ########## Remainder of processing ##########
     # contrasts for protein statistics
     ratios <- rbind(c('EME; 0H',  'UN; 0H' ),
                     c('EME; 2H', 'EME; 0H' ),
@@ -78,9 +90,9 @@ foreach(j=1:length(paths)) %do%
     ###################################################################
     # Merge peptide and protein data into a single, nested data frame #
     ###################################################################
-  
+
     # calculate peptide stats
-    peptides <- data$FeatureLevelData[1:200,] %>%
+    peptides <- data$FeatureLevelData %>%
     
       rename(abund = newABUNDANCE) %>% # newABUNDANCE is the normalized abundances
       
@@ -97,7 +109,7 @@ foreach(j=1:length(paths)) %do%
   
   
     # Extract peptide data
-    peptides <- data$FeatureLevelData[1:200,] %>%
+    peptides <- data$FeatureLevelData %>%
     
       rename(abund = newABUNDANCE) %>%
     
@@ -165,9 +177,10 @@ foreach(j=1:length(paths)) %do%
   
     # remove "blank*" column names
     names(proteins)[grep('blank', names(proteins))] <- ''
-    save(data, proteins, peptides, file = paste0('output/', dirs[j], '.RData'))
-  }else{
-    load(paste0('output/', dirs[j], '.RData'))
+    save(proteins, file = paste0('output/', dirs[j], '_processed.RData'))
+    
+    # release some memory
+    rm(data, peptides)
   }
   
   if(!file.exists(paste0('output/', dirs[j], '.xlsx')))
@@ -176,6 +189,16 @@ foreach(j=1:length(paths)) %do%
     wb <- createWorkbook()
   
     addWorksheet(wb, dirs[j])
+    # don't do this - allocating the entire object at once seems to slow things down rather than speed them up.
+    # not to mention the fact that the format of the written data is an issue - you can't use this package
+    # to format columns of data that are mixed numeric and text unless you write them all one block at a time.
+    # This is a problem because the data takes forreevvveerrr to write one block at a time. :P
+    # Either way I think this ends up rewriting `wb` on each call to `writeData`, which is super inefficient.
+    # writeData(wb, sheet = dirs[j], startRow = 1, startCol = 1,
+    #           x = matrix('', 
+    #                      nrow = dim(proteins)[1] +
+    #                        map_int(proteins$peptides, ~ dim(.x)[1]) %>% sum(),
+    #                      ncol = dim(proteins)[2] - 1))
   
     nextRow <- 1 # keep track of what row we're on
   
@@ -208,7 +231,7 @@ foreach(j=1:length(paths)) %do%
       # format peptides
       addStyle(wb = wb, sheet = dirs[j], style = peptide_header,
                rows = nextRow + 1,
-               cols = 2:dim(peptides)[2],
+               cols = 2:dim(proteins$peptides[[i]])[2],
                gridExpand = TRUE)
       addStyle(wb = wb, sheet = dirs[j], style = peptide_rows,
                rows = nextRow + 2:(dim(proteins$peptides[[i]])[1] + 1),
