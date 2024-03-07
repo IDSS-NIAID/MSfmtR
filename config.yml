@@ -1,0 +1,8 @@
+default:
+  input_dir: "data"
+  output_dir: "output"
+  protein_header_fill: "A7CDF0"
+  protein_row_fill: "#DDEBF7"
+  peptide_header_fill: "#F0CBA8"
+  peptide_row_fill: "#FCE4D6"
+  out_xlsx: "aspinwallja-20230825-PI1.xlsx"
