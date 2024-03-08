@@ -138,6 +138,8 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
                      file.info()) |>
   mutate(conf_name = all_files)
 
+# if we are regenerating the xlsx file, we need to remove the old one at this point
+
 
 ###########
 # do work #
@@ -169,7 +171,7 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
   }
 
 
-  data <- SpectronauttoMSstatsFormat(raw) %>%
+  data <- SpectronauttoMSstatsFormat(raw, use_log_file = FALSE) %>%
     dataProcess()
 
   # checkpoint
@@ -348,23 +350,27 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
 
   indices$peptide_rows <- with(indices,
                                c((1:max(peptide_headers)+1)[-c(protein_rows, peptide_headers) + 1],
-                                 max(peptide_headers) + 1:dim(proteins$peptides[[i]])[1]))
+                                 max(peptide_headers) + 1:dim(peptides)[1]))
 
   # format protein rows
-  addStyle(wb = wb, sheet = config$sheet, style = protein_header_style,
+  addStyle(wb = wb, sheet = config$sheet, 
+           style = createStyle(fgFill = config$protein_header_fill),
            rows = 1, cols = 1:dim(proteins)[2],
            gridExpand = TRUE)
-  addStyle(wb = wb, sheet = config$sheet, style = protein_rows_style,
+  addStyle(wb = wb, sheet = config$sheet,
+           style = createStyle(fgFill = config$protein_rows_fill),
            rows = indices$protein_rows,
            cols = 1:dim(proteins)[2],
            gridExpand = TRUE)
 
   # format peptide rows
-  addStyle(wb = wb, sheet = config$sheet, style = peptide_header_style,
+  addStyle(wb = wb, sheet = config$sheet,
+           style = createStyle(fgFill = config$peptide_header_fill),
            rows = indices$peptide_headers,
            cols = 2:max(which(!is.na(proteins[2,]))),
            gridExpand = TRUE)
-  addStyle(wb = wb, sheet = config$sheet, style = peptide_rows_style,
+  addStyle(wb = wb, sheet = config$sheet,
+           style = createStyle(fgFill = config$peptide_rows_fill),
            rows = indices$peptide_rows,
            cols = 2:max(which(!is.na(proteins[2,]))),
            gridExpand = TRUE)
@@ -378,4 +384,3 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
 
 # save this monster
 saveWorkbook(wb, file = with(config, file.path(output_dir, out_xlsx)))
-
