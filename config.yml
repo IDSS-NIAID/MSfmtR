@@ -1,8 +1,10 @@
 default:
   input_dir: "data"
   output_dir: "output"
+  checkpoints: "xlsx,sql"
   protein_header_fill: "#A7CDF0"
   protein_rows_fill: "#DDEBF7"
   peptide_header_fill: "#F0CBA8"
   peptide_rows_fill: "#FCE4D6"
   out_xlsx: "aspinwallja-20230825-PI1.xlsx"
+  ratios: "EME; 0H/UN; 0H,EME; 2H/EME; 0H,UN; 2H/UN; 0H,EME; 2H/UN; 2H,EME; 24H/EME; 2H,UN; 24H/UN; 2H,EME; 72H/EME; 2H,UN; 72H/UN; 2H,EME; 24H/UN; 24H,EME; 48H/EME; 24H,UN; 48H/UN; 24H,EME; 48H/UN; 48H,EME; 72H/EME; 48H,UN; 72H/UN; 48H,EME; 72H/UN; 72H"

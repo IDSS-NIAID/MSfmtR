@@ -30,6 +30,7 @@
 #' @param peptide_rows_fill The fill color for the peptide rows in the output Excel file.
 
 ### Checkpoint parameters
+#' @param checkpoints A list of files to generate (if they already exist, this will be ignored). Options include: `xlsx,sql,processed,protein,peptide,wb`.
 #' @param processed_checkpoint The name of the checkpoint file to save the processed data to. Default is `paste0(config$sheet, '_processed.RData')`.
 #' @param protein_checkpoint The name of the checkpoint file to save the protein statistics to. Default is `paste0(config$sheet, '_protein.RData')`.
 #' @param peptide_checkpoint The name of the checkpoint file to save the peptide statistics to. Default is `paste0(config$sheet, '_peptide.RData')`.
@@ -104,6 +105,14 @@ if(is.null(config$out_sqlite))
 if(is.null(config$sheet))
   config$sheet <- str_replace(config$out_xlsx, fixed('.xlsx'), '')
 
+if(!is.null(config$checkpoints))
+{
+  config$checkpoints <- str_split(config$checkpoints, ',') %>%
+    unlist()
+}else{
+  config$checkpoints <- c('xlsx', 'sql')
+}
+
 if(is.null(config$processed_checkpoint))
   config$processed_checkpoint <- paste0(config$sheet, '_processed.RData')
 
@@ -127,18 +136,58 @@ if(!dir.exists(config$output_dir))
 
 
 # start at the end and move backward (i.e. higher files on the list depend on files later in the list)
-all_files <- c('out_xlsx',
-               'wb_checkpoint',
-               'out_sqlite',
-               'protein_checkpoint',
-               'peptide_checkpoint',
-               'processed_checkpoint')
+all_files <- c(xlsx = 'out_xlsx',
+               wb = 'wb_checkpoint',
+               sql = 'out_sqlite',
+               protein = 'protein_checkpoint',
+               peptide = 'peptide_checkpoint',
+               processed = 'processed_checkpoint',
+               input = 'in_file')
+all_files <- factor(all_files, levels = all_files, ordered = TRUE)
 
-progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
-                     file.info()) |>
-  mutate(conf_name = all_files)
+# file dependencies
+depends <- list(xlsx = c('wb_checkpoint'),
+                wb = c('protein_checkpoint', 'peptide_checkpoint'),
+                sql = c('protein_checkpoint', 'peptide_checkpoint'),
+                protein = c('processed'),
+                peptide = c('processed'),
+                processed = c('in_file'),
+                input = character(0))
 
-# if we are regenerating the xlsx file, we need to remove the old one at this point
+# files to be generated (ordered by dependency)
+files <- all_files[config$checkpoints]
+
+# check what files exist, which need to be loaded, and which need to be run
+progress <- as.character(all_files) |>
+
+  map_df(~ ifelse(.x == 'in_file',
+                  file.path(config$input_dir,  config[[.x]]),
+                  file.path(config$output_dir, config[[.x]])) |>
+           file.info()) |>
+
+  mutate(conf_name = all_files,
+         generate = conf_name %in% files,
+         run = generate & is.na(size),
+         load = FALSE)
+
+for(i in 1:nrow(progress))
+{
+  # does anything depend on this?
+  need <- which(map_lgl(depends, ~ progress$conf_name[i] %in% .x))
+
+  if(any(progress[need,'run']))
+  {
+    # if so, can we load a checkpoint?
+    if(!is.na(progress$size[i]))
+    {
+      # if so, we don't need to run this
+      progress$load[i] <- TRUE
+    }else{
+      # if not, we need to run this
+      progress$run[i] <- TRUE
+    }
+  }
+}
 
 
 ###########
@@ -147,7 +196,12 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
 
 ##### Load and process raw data #####
 
+stage <- with(config, file.path(output_dir, processed_checkpoint))
+
+if(progress[stage,'load'])
 {
+  load(stage)
+}else if(progress[stage,'run']){
   # Load and process the data
   raw <- with(config, file.path(input_dir, in_file)) |>
     read_delim(delim = "\t", col_names = TRUE)
@@ -175,13 +229,19 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
     dataProcess()
 
   # checkpoint
-  save(data, config, file = with(config, file.path(output_dir, processed_checkpoint)))
+  if(progress[stage, 'generate'])
+    save(data, config, file = stage)
 }
 
 
 ##### Process peptide stats #####
 
+stage <- with(config, file.path(output_dir, peptide_checkpoint))
+
+if(progress[stage,'load'])
 {
+  load(stage)
+}else if(progress[stage,'run']){
   # calculate peptide stats
   peptides <- data$FeatureLevelData %>%
 
@@ -242,13 +302,19 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
     left_join(peptides, by = c('PROTEIN', 'FEATURE'))
 
   # checkpoint
-  save(peptides, config, file = with(config, file.path(output_dir, peptide_checkpoint)))
+  if(progress[stage, 'generate'])
+    save(peptides, config, file = stage)
 }
 
 
 ##### Process protein stats #####
 
+stage <- with(config, file.path(output_dir, protein_checkpoint))
+
+if(progress[stage,'load'])
 {
+  load(stage)
+}else if(progress[stage,'run']){
   contrasts <- matrix(0, nrow = nrow(config$ratios), ncol = length(levels(data$FeatureLevelData$GROUP)),
                       dimnames = list(paste(config$ratios[,1], '/', config$ratios[,2]),
                                       levels(data$FeatureLevelData$GROUP)))
@@ -282,15 +348,18 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
     left_join(proteins, by = c('Protein' = 'Protein'))
 
   # checkpoint
-  save(proteins, config, file = with(config, file.path(output_dir, protein_checkpoint)))
+  if(progress[stage, 'generate'])
+    save(proteins, config, file = stage)
 }
 
 
 ##### Write sqlite file #####
 
-{
+stage <- with(config, file.path(output_dir, out_sqlite))
+
+if(progress[stage,'run']){
   # create a new sqlite database
-  con <- dbConnect(SQLite(), dbname = with(config, file.path(output_dir, out_sqlite)))
+  con <- dbConnect(SQLite(), dbname = stage)
 
   # write the data to the database
   dbWriteTable(con, 'peptides', peptides, overwrite = TRUE)
@@ -302,7 +371,12 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
 
 ##### Format Excel wb #####
 
+stage <- with(config, file.path(output_dir, wb_checkpoint))
+
+if(progress[stage,'load'])
 {
+  load(stage)
+}else if(progress[stage,'run']){
   # connect to the database
   con <- dbConnect(SQLite(), dbname = with(config, file.path(output_dir, out_sqlite)))
 
@@ -376,11 +450,15 @@ progress <- map_df(all_files, ~ file.path(config$output_dir, config[[.x]]) |>
            gridExpand = TRUE)
 
   #openXL(wb)
-  save(wb, indices, file = with(config, file.path(output_dir, wb_checkpoint)))
+  if(progress[stage, 'generate'])
+    save(wb, indices, file = stage)
 }
 
 
 ##### Write Excel file #####
 
-# save this monster
-saveWorkbook(wb, file = with(config, file.path(output_dir, out_xlsx)))
+stage <- with(config, file.path(output_dir, out_xlsx))
+
+if(progress[stage,'run']){
+  saveWorkbook(wb, file = stage)
+}
