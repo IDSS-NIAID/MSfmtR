@@ -12,6 +12,9 @@
 
 ## optional parameters
 
+### Taxonomy parameters
+#' @param taxId The taxonomy to use for accessing the UniProt metadata. Default is `9609` (Homo sapiens) when not specified.
+
 ### File parameters
 #' @param in_file The name of the input file to be processed. This should be an MSstats-formatted file from Spectronaut.
 #'  If not provided, the script will look for a `.tsv` file in `input_dir`, and if there is more than one it will throw
@@ -63,6 +66,9 @@ library(openxlsx)
 library(config)
 library(RSQLite)
 
+library(Biostrings)
+library(muscle)
+
 
 ###############
 # Load config #
@@ -88,6 +94,9 @@ if(length(args) > 0)
   }
 
 # calculate unspecified defaults
+if(is.null(config$taxId))
+  config$taxId <- 9606
+
 if(is.null(config$in_file))
 {
   config$in_file <- list.files(config$input_dir, pattern = 'tsv')
@@ -149,7 +158,7 @@ all_files <- factor(all_files, levels = all_files, ordered = TRUE)
 depends <- list(xlsx = c('wb_checkpoint'),
                 wb = c('protein_checkpoint', 'peptide_checkpoint'),
                 sql = c('protein_checkpoint', 'peptide_checkpoint'),
-                protein = c('processed'),
+                protein = c('processed', 'peptide_checkpoint'),
                 peptide = c('processed'),
                 processed = c('in_file'),
                 input = character(0))
@@ -325,7 +334,7 @@ if(progress[stage,'load'])
                   config$ratios[i,2])] <- c(1,-1)
   }
 
-  # calculate protein stats
+  ### calculate protein stats ###
   proteins <- groupComparison(contrast.matrix = contrasts, data = data)$ComparisonResult %>%
 
     dplyr::select(Protein, Label, log2FC, pvalue, adj.pvalue) %>%
@@ -333,23 +342,75 @@ if(progress[stage,'load'])
     pivot_wider(names_from = Label, values_from = c(log2FC, pvalue, adj.pvalue))
 
 
-  # Extract protein data
+  ### Extract protein data ###
   proteins <- data$ProteinLevelData %>%
 
     mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
-           blank1 = '',
-           blank2 = '',
-           blank3 = '') %>%
+           `coverage%` = NA) %>%
 
-    select(Protein, blank1, blank2, blank3, TotalGroupMeasurements, LogIntensities, id) %>%
+    select(Protein, `coverage%`, TotalGroupMeasurements, LogIntensities, id) %>%
 
     pivot_wider(names_from = id, values_from = LogIntensities) %>%
 
     left_join(proteins, by = c('Protein' = 'Protein'))
 
+
+  ### Add metadata ###
+
+  # all protein IDs
+  proteinIDs <- proteins$Protein |>
+    str_split(fixed(';')) |>
+    unlist() |>
+    str_replace(fixed('Cont_'), '') |>
+    unique()
+
+  # get UniProt metadata - manually search individual IDs here: https://www.uniprot.org/uniprotkb
+  UPmeta <- UniProt.ws::select(UniProt.ws(taxId=config$taxId),
+                             proteinIDs,
+                             c('organism_name', 'protein_name', 'mass', 'sequence')) %>%
+    dplyr::select(Entry, Organism, Protein.names, Mass, Sequence) %>%
+    dplyr::rename(Protein = Entry,
+                  Description = Protein.names)
+
+  # merge metadata into proteins
+  proteins <- proteins |>
+    mutate(primary_id = str_split(Protein, fixed(';')) |>
+             map_chr(~ .x[1]) |>
+             str_replace(fixed('Cont_', ''))) |>
+    left_join(UPmeta, proteins, by = c('primary_id' = 'Protein'))
+
+  # Calculate coverage
+  for(i in 1:nrow(proteins))
+  {
+    if(is.na(proteins$Sequence[i]))
+       next
+
+    # write FASTA file
+    cat('>protein', proteins$Sequence[i], sep = '\n', file = "sequence.txt")
+
+    pep <- filter(peptides, PROTEIN == proteins$Protein[i])$PEPTIDE %>% unique()
+    cat(paste0('>pep', 1:length(pep), '\n', pep), sep = '\n', file = "sequence.txt", append = TRUE)
+
+    # read sequences into Biostrings::StringSet object
+    seqs <- Biostrings::readAAStringSet("sequence.txt")
+
+    # align sequences and convert to matrix
+    aligned <- muscle::muscle(seqs) %>%
+      as.matrix()
+
+    # calculate coverage
+    coverage <- {aligned != '-'} %>%
+      colSums()
+
+    proteins$`coverage%`[i] <- sum(coverage > 1) / length(coverage) * 100
+  }
+
+  # clean up
+  file.remove("sequence.txt")
+
   # checkpoint
   if(progress[stage, 'generate'])
-    save(proteins, config, file = stage)
+    save(proteins, config, proteinIDs, UPmeta, file = stage)
 }
 
 
