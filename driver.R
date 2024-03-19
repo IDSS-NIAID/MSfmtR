@@ -12,9 +12,6 @@
 
 ## optional parameters
 
-### Taxonomy parameters
-#' @param taxId The taxonomy to use for accessing the UniProt metadata. Default is `9609` (Homo sapiens) when not specified.
-
 ### File parameters
 #' @param in_file The name of the input file to be processed. This should be an MSstats-formatted file from Spectronaut.
 #'  If not provided, the script will look for a `.tsv` file in `input_dir`, and if there is more than one it will throw
@@ -23,8 +20,17 @@
 #' @param out_sqlite The name of the output SQLite database. Default is `str_replace(config$out_file, fixed('.xlsx'), '.sqlite')`.
 #' @param sheet The name of the sheet to write the output to. Default is `str_replace(config$out_file, fixed('.xlsx'), '')`.
 
+### Filtering parameters
+#' @param uloq Upper limit of quantification. Proteins with abundances greater than this will be removed from the analysis. Default is `Inf`.
+#' @param lloq Lower limit of quantification. Proteins with abundances less than this will be removed from the analysis. Default is `0`.
+#' @param cont_fasta The name of the contaminant fasta file to use (assumed to be in `input_dir`). Default is the Universal Contaminant file that comes with this package.
+
+### Metadata parameters
+#' @param fasta The name of the fasta file(s) to use for annotation. If no annotation files are provided, `input_dir` will be checked for fasta files different from `cont_fasta`. If none are found, UniProt will be used for annotation.
+#' @param taxId The taxonomy ID of the organism being analyzed. Default is `9606` (human). This is used to search for anything outside of the files in `fasta`.
+
 ### MSStats parameters
-#' @param ratios The contrasts to be used in the MSStats analysis. Default is all combinations of all levels in `in_file`.
+#' @param ratios The contrasts to be used in the MSStats analysis. Default is all combinations of all levels in `in_file`. Each ratio in the list should be of the form "<group1>/<group2>", so for group1=Case and group2=Control, the ratio would be "Case/Control". These labels should match values in the `R.Condition` column of `in_file`.
 
 ### Style parameters
 #' @param protein_header_fill The fill color for the protein header in the output Excel file.
@@ -68,6 +74,7 @@ library(RSQLite)
 
 library(Biostrings)
 library(muscle)
+library(UniProt.ws)
 
 
 ###############
@@ -93,14 +100,17 @@ if(length(args) > 0)
     config[names(args)[i]] <- args[i]
   }
 
-# calculate unspecified defaults
-if(is.null(config$taxId))
-  config$taxId <- 9606
+# check for required parameters
+if(is.null(config$input_dir) | is.null(config$output_dir))
+  stop('input_dir and output_dir are required parameters')
 
+# calculate unspecified defaults
+
+## File parameters
 if(is.null(config$in_file))
 {
   config$in_file <- list.files(config$input_dir, pattern = 'tsv')
-
+  
   if(length(config$in_file) != 1)
     stop('Expecting to find exactly 1 .tsv file in input_dir, found ', length(config$in_file))
 }
@@ -114,10 +124,57 @@ if(is.null(config$out_sqlite))
 if(is.null(config$sheet))
   config$sheet <- str_replace(config$out_xlsx, fixed('.xlsx'), '')
 
+
+## Filtering parameters
+if(is.null(config$uloq))
+  config$uloq <- Inf
+if(is.null(config$lloq))
+  config$lloq <- 0
+if(is.null(config$cont_fasta))
+{
+  config$cont_fasta <- 'inst/extdata/Universal Contaminants.fasta'
+}else if(!file.exists(file.path(config$input_dir, config$cont_fasta)))
+{
+  warning('cont_fasta does not exist, using default: ', config$cont_fasta)
+  config$cont_fasta <- 'inst/extdata/Universal Contaminants.fasta'
+}
+
+
+## Metadata parameters
+if(is.null(config$fasta))
+{
+  config$fasta <- list.files(config$input_dir, pattern = 'fasta') |>
+    grep(pattern = config$cont_fasta, invert = TRUE, value = TRUE)
+} 
+if(is.null(config$taxId))
+  config$taxId <- 9606
+
+
+## MSStats parameters
+# if ratios is null, we'll fill it in after reading in the raw data
+
+
+## Style parameters
+if(is.null(config$protein_header_fill))
+  config$protein_header_fill <- "#A7CDF0"
+if(is.null(config$protein_rows_fill))
+  config$protein_rows_fill <- "#DDEBF7"
+if(is.null(config$peptide_header_fill))
+  config$peptide_header_fill <- "#F0CBA8"
+if(is.null(config$peptide_rows_fill))
+  config$peptide_rows_fill <- "#FCE4D6"
+
+
+## Checkpoint parameters
 if(!is.null(config$checkpoints))
 {
-  config$checkpoints <- str_split(config$checkpoints, ',') %>%
-    unlist()
+  if(config$checkpoints == 'all')
+  {
+    config$checkpoints <- c('xlsx', 'sql', 'processed', 'protein', 'peptide', 'wb')
+  }else{
+    config$checkpoints <- str_split(config$checkpoints, ',') %>%
+      unlist()
+  }
 }else{
   config$checkpoints <- c('xlsx', 'sql')
 }
