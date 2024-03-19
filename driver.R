@@ -39,7 +39,7 @@
 #' @param peptide_rows_fill The fill color for the peptide rows in the output Excel file.
 
 ### Checkpoint parameters
-#' @param checkpoints A list of files to generate (if they already exist, this will be ignored). Options include: `xlsx,sql,processed,protein,peptide,wb`.
+#' @param checkpoints A list of files to generate (if they already exist, this will be ignored). Options include: `xlsx,sql,processed,protein,peptide,wb`. Specifying `all` will result in all checkpoints being generated. Default is `xlsx,sql`.
 #' @param processed_checkpoint The name of the checkpoint file to save the processed data to. Default is `paste0(config$sheet, '_processed.RData')`.
 #' @param protein_checkpoint The name of the checkpoint file to save the protein statistics to. Default is `paste0(config$sheet, '_protein.RData')`.
 #' @param peptide_checkpoint The name of the checkpoint file to save the peptide statistics to. Default is `paste0(config$sheet, '_peptide.RData')`.
@@ -268,10 +268,19 @@ if(progress[stage,'load'])
 {
   load(stage)
 }else if(progress[stage,'run']){
+
+  # contaminants
+  contam <- Biostrings::readAAStringSet(file.path(config$input_dir, config$cont_fasta))@ranges@NAMES |>
+    str_split(fixed('|')) |>
+    map_chr(~ .x[2])
+  
   # Load and process the data
   raw <- with(config, file.path(input_dir, in_file)) |>
-    read_delim(delim = "\t", col_names = TRUE)
+    read_delim(delim = "\t", col_names = TRUE) |>
+    dplyr::filter(!PG.ProteinAccessions %in% contam)
 
+  ########## do protein group analysis here ##########
+  
   # format ratios
   if(is.null(config$ratios))
   {
@@ -283,18 +292,26 @@ if(progress[stage,'load'])
       t()
   }else{
     tmp <- config$ratios |>
-      str_split(',') |>
-      unlist() |>
       str_split('/')
 
     config$ratios <- cbind(map_chr(tmp, ~ .x[1]), map_chr(tmp, ~ .x[2]))
+    
+    # make sure these are all in raw$R.Condition
+    if(any(!config$ratios %in% raw$R.Condition))
+      stop("Not all conditions in ratios are in the raw data")
   }
 
 
   data <- SpectronauttoMSstatsFormat(raw, use_log_file = FALSE) %>%
-    dataProcess()
-
+    dataProcess(logTrans      = 10,    # data comes log10 transformed? (double check)
+                normalization = FALSE, # use Spectronaut normalization
+                use_log_file  = FALSE)
+  
+  ########## Filter intensities here based on ULOQ and LLOQ ##########
+  
   # checkpoint
+  if(FALSE)
+    save(raw, file = 'output/raw.RData')
   if(progress[stage, 'generate'])
     save(data, config, file = stage)
 }
@@ -417,24 +434,60 @@ if(progress[stage,'load'])
   # all protein IDs
   proteinIDs <- proteins$Protein |>
     str_split(fixed(';')) |>
-    unlist() |>
-    str_replace(fixed('Cont_'), '') |>
-    unique()
+    unlist()
 
-  # get UniProt metadata - manually search individual IDs here: https://www.uniprot.org/uniprotkb
-  UPmeta <- UniProt.ws::select(UniProt.ws(taxId=config$taxId),
-                             proteinIDs,
-                             c('organism_name', 'protein_name', 'mass', 'sequence')) %>%
-    dplyr::select(Entry, Organism, Protein.names, Mass, Sequence) %>%
-    dplyr::rename(Protein = Entry,
-                  Description = Protein.names)
+  # if we have fasta files provided, use them to get protein metadata
+  if(length(config$fasta) > 0)
+  {
+    # read fasta
+    fasta <- map(config$fasta, ~ Biostrings::readAAStringSet(file.path(config$input_dir, .x))) |>
+      AAStringSetList() |>
+      unlist()
+    
+    # get named meta data on the end of each fasta entry
+    fasta_meta <- names(fasta) |>
+      str_locate_all(fixed('=')) |>
+      map2(names(fasta), ~ 
+      {
+        names_start <-   .x[  ,1] - 2
+        names_end   <-   .x[  ,1] - 1
+        
+        dat_start   <-   .x[  ,1] + 1
+        dat_end     <- c(.x[-1,1] - 4, nchar(.y))
+        
+        dat <- str_sub_all(.y, dat_start, dat_end)[[1]]
+        names(dat) <- str_sub_all(.y, names_start, names_end)[[1]]
+        
+        dat
+      })
+
+    # compile metadata
+    meta <- tibble(Protein = names(fasta) |> 
+                     str_split(fixed('|')) |>
+                     map_chr(~ .x[2]),
+                   Description = names(fasta) |>
+                     str_split(fixed('=')) |>
+                     map_chr(~ .x[1]) |>
+                     str_split(fixed('|')) |>
+                     map_chr(~ .x[3]),
+                   Organism = map_chr(fasta_meta, ~ .x['OS']),
+                   Sequence = as.character(fasta))
+
+  # otherwise get UniProt metadata - manually search individual IDs here: https://www.uniprot.org/uniprotkb
+  }else{
+    meta <- UniProt.ws::select(UniProt.ws(taxId=config$taxId),
+                               proteinIDs,
+                               c('organism_name', 'protein_name', 'sequence')) %>%
+      dplyr::select(Entry, Organism, Protein.names, Sequence) %>%
+      dplyr::rename(Protein = Entry,
+                    Description = Protein.names)
+  }
 
   # merge metadata into proteins
   proteins <- proteins |>
     mutate(primary_id = str_split(Protein, fixed(';')) |>
-             map_chr(~ .x[1]) |>
-             str_replace(fixed('Cont_', ''))) |>
-    left_join(UPmeta, proteins, by = c('primary_id' = 'Protein'))
+             map_chr(~ .x[1])) |>
+    left_join(meta, by = c('primary_id' = 'Protein'))
 
   # Calculate coverage
   for(i in 1:nrow(proteins))
@@ -442,14 +495,8 @@ if(progress[stage,'load'])
     if(is.na(proteins$Sequence[i]))
        next
 
-    # write FASTA file
-    cat('>protein', proteins$Sequence[i], sep = '\n', file = "sequence.txt")
-
-    pep <- filter(peptides, PROTEIN == proteins$Protein[i])$PEPTIDE %>% unique()
-    cat(paste0('>pep', 1:length(pep), '\n', pep), sep = '\n', file = "sequence.txt", append = TRUE)
-
-    # read sequences into Biostrings::StringSet object
-    seqs <- Biostrings::readAAStringSet("sequence.txt")
+    seqs <- c(Biostrings::AAStringSet(proteins$Sequence[i]),
+              Biostrings::AAStringSet(filter(peptides, PROTEIN == proteins$Protein[i])$PEPTIDE %>% unique()))
 
     # align sequences and convert to matrix
     aligned <- muscle::muscle(seqs) %>%
@@ -462,12 +509,9 @@ if(progress[stage,'load'])
     proteins$`coverage%`[i] <- sum(coverage > 1) / length(coverage) * 100
   }
 
-  # clean up
-  file.remove("sequence.txt")
-
   # checkpoint
   if(progress[stage, 'generate'])
-    save(proteins, config, proteinIDs, UPmeta, file = stage)
+    save(proteins, config, file = stage)
 }
 
 
