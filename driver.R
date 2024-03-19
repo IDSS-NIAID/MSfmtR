@@ -328,7 +328,7 @@ if(progress[stage,'load'])
   # calculate peptide stats
   peptides <- data$FeatureLevelData %>%
 
-    rename(abund = newABUNDANCE) %>% # newABUNDANCE is the normalized abundances
+    dplyr::rename(abund = newABUNDANCE) %>% # newABUNDANCE is the normalized abundances
 
     group_by(PROTEIN, FEATURE, GROUP) %>%
 
@@ -337,7 +337,7 @@ if(progress[stage,'load'])
 
     ungroup() %>%
 
-    rename(id = GROUP) %>%
+    dplyr::rename(id = GROUP) %>%
 
     pivot_wider(names_from = id, values_from = c(abund, cv))
 
@@ -345,7 +345,7 @@ if(progress[stage,'load'])
   # extract peptide data
   peptides <- data$FeatureLevelData %>%
 
-    rename(abund = newABUNDANCE) %>%
+    dplyr::rename(abund = newABUNDANCE) %>%
 
     mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
 
@@ -377,7 +377,7 @@ if(progress[stage,'load'])
                                gsub(pattern = '\\[.*?\\]', replacement = ''))) %>%
 
 
-    select(PROTEIN, PEPTIDE, Modification, TRANSITION, FEATURE, id, abund) %>%
+    dplyr::select(PROTEIN, PEPTIDE, Modification, TRANSITION, FEATURE, id, abund) %>%
 
     pivot_wider(names_from = id, values_from = abund) %>%
 
@@ -398,6 +398,8 @@ if(progress[stage,'load'])
 {
   load(stage)
 }else if(progress[stage,'run']){
+  
+  # contrasts
   contrasts <- matrix(0, nrow = nrow(config$ratios), ncol = length(levels(data$FeatureLevelData$GROUP)),
                       dimnames = list(paste(config$ratios[,1], '/', config$ratios[,2]),
                                       levels(data$FeatureLevelData$GROUP)))
@@ -422,7 +424,7 @@ if(progress[stage,'load'])
     mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
            `coverage%` = NA) %>%
 
-    select(Protein, `coverage%`, TotalGroupMeasurements, LogIntensities, id) %>%
+    dplyr::select(Protein, `coverage%`, TotalGroupMeasurements, LogIntensities, id) %>%
 
     pivot_wider(names_from = id, values_from = LogIntensities) %>%
 
