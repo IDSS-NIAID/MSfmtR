@@ -3,14 +3,15 @@
 #' Edit the `config.yml` file in this directory to change the configuration options, or include parameters via the command line.
 #' Command line parameters will override the `config.yml` file. See `config.yml` for defaults.
 
-## required parameters
-
-#' @param input_dir The directory containing the data files. This script will only run one file at a time,
-#'  so either the directory should contain only one file, or the `in_file` variable should be set to the file to be
-#'  processed. If `in_file` is not provided it will look for a `.tsv` file to analyze inside of `input_dir`.
-#' @param output_dir The directory to save the output files to. If it does not exist, it will be created.
-
-## optional parameters
+### Directory parameters
+#' @param input_dir The directory containing the data files (default is the current working directory).
+#'  This script will only run one file at a time, so either the directory should contain only one file,
+#'  or the `in_file` variable should be set to the file to be processed. If `in_file` is not provided it
+#'  will look for a `.tsv` file to analyze inside of `input_dir`.
+#' @param fasta_dir The path to the directory containing the fasta files to use for annotation. If not
+#'  provided, the script will look for fasta files in the current working directory.
+#' @param output_dir The directory to save the output files to (default is the current working directory).
+#'  If it does not exist, it will be created.
 
 ### File parameters
 #' @param in_file The name of the input file to be processed. This should be an MSstats-formatted file from Spectronaut.
@@ -23,14 +24,21 @@
 ### Filtering parameters
 #' @param uloq Upper limit of quantification. Proteins with abundances greater than this will be removed from the analysis. Default is `Inf`.
 #' @param lloq Lower limit of quantification. Proteins with abundances less than this will be removed from the analysis. Default is `0`.
-#' @param cont_fasta The name of the contaminant fasta file to use (assumed to be in `input_dir`). Default is the Universal Contaminant file that comes with this package.
+#' @param cont_fasta The name of the contaminant fasta file to use (assumed to be in `fasta_dir`). Default
+#'  is the Universal Contaminant file that comes with this package.
 
 ### Metadata parameters
-#' @param fasta The name of the fasta file(s) to use for annotation. If no annotation files are provided, `input_dir` will be checked for fasta files different from `cont_fasta`. If none are found, UniProt will be used for annotation.
-#' @param taxId The taxonomy ID of the organism being analyzed. Default is `9606` (human). This is used to search for anything outside of the files in `fasta`.
+#' @param fasta The name of the fasta file(s) to use for annotation. If no annotation files are provided,
+#'  `fasta_dir` will be checked for fasta files different from `cont_fasta`. If none are found, UniProt
+#'   will be used for annotation.
+#' @param taxId The taxonomy ID of the organism being analyzed. Default is `9606` (human). This is used to
+#'  search for anything outside of the files in `fasta`.
 
 ### MSStats parameters
-#' @param ratios The contrasts to be used in the MSStats analysis. Default is all combinations of all levels in `in_file`. Each ratio in the list should be of the form "<group1>/<group2>", so for group1=Case and group2=Control, the ratio would be "Case/Control". These labels should match values in the `R.Condition` column of `in_file`.
+#' @param ratios The contrasts to be used in the MSStats analysis. Default is all combinations of all levels
+#'  in `in_file`. Each ratio in the list should be of the form "<group1>/<group2>", so for group1=Case and
+#'  group2=Control, the ratio would be "Case/Control". These labels should match values in the `R.Condition`
+#'  column of `in_file`.
 
 ### Style parameters
 #' @param protein_header_fill The fill color for the protein header in the output Excel file.
@@ -39,7 +47,9 @@
 #' @param peptide_rows_fill The fill color for the peptide rows in the output Excel file.
 
 ### Checkpoint parameters
-#' @param checkpoints A list of files to generate (if they already exist, this will be ignored). Options include: `xlsx,sql,processed,protein,peptide,wb`. Specifying `all` will result in all checkpoints being generated. Default is `xlsx,sql`.
+#' @param checkpoints A list of files to generate (if they already exist, this will be ignored). Options
+#'  include: `xlsx,sql,processed,protein,peptide,wb`. Specifying `all` will result in all checkpoints being
+#'  generated. Default is `xlsx,sql`.
 #' @param processed_checkpoint The name of the checkpoint file to save the processed data to. Default is `paste0(config$sheet, '_processed.RData')`.
 #' @param protein_checkpoint The name of the checkpoint file to save the protein statistics to. Default is `paste0(config$sheet, '_protein.RData')`.
 #' @param peptide_checkpoint The name of the checkpoint file to save the peptide statistics to. Default is `paste0(config$sheet, '_peptide.RData')`.
@@ -47,10 +57,6 @@
 
 #' @details This script is designed to be run from the command line. It will read the `config.yml` file in the
 #' current directory and use the parameters to process the data.
-#'
-#' `ratios` should be a comma-separated list of contrasts to be used in the MSStats analysis, with the numerator and
-#' denominator separated by "/" and each contrast separated by a comma. For example, `EME 0H/UN 0H,EME 2H/EME 0H`. The
-#' values in each ratio (e.g. `EME 0H` and `UN 0H`) should match the values in the `R.Condition` column of `in_file`.
 #'
 #' @examples
 #' Rscript driver.R --args input_dir=data output_dir=output
@@ -100,17 +106,22 @@ if(length(args) > 0)
     config[names(args)[i]] <- args[i]
   }
 
-# check for required parameters
-if(is.null(config$input_dir) | is.null(config$output_dir))
-  stop('input_dir and output_dir are required parameters')
+## Directory parameters
+if(is.null(config$input_dir))
+  config$input_dir <- '.'
 
-# calculate unspecified defaults
+if(is.null(config$fasta_dir))
+  config$fasta_dir <- '.'
+
+if(is.null(config$output_dir))
+  config$output_dir <- '.'
+
 
 ## File parameters
 if(is.null(config$in_file))
 {
   config$in_file <- list.files(config$input_dir, pattern = 'tsv')
-  
+
   if(length(config$in_file) != 1)
     stop('Expecting to find exactly 1 .tsv file in input_dir, found ', length(config$in_file))
 }
@@ -133,7 +144,7 @@ if(is.null(config$lloq))
 if(is.null(config$cont_fasta))
 {
   config$cont_fasta <- 'inst/extdata/Universal Contaminants.fasta'
-}else if(!file.exists(file.path(config$input_dir, config$cont_fasta)))
+}else if(!file.exists(file.path(config$fasta_dir, config$cont_fasta)))
 {
   warning('cont_fasta does not exist, using default: ', config$cont_fasta)
   config$cont_fasta <- 'inst/extdata/Universal Contaminants.fasta'
@@ -143,9 +154,9 @@ if(is.null(config$cont_fasta))
 ## Metadata parameters
 if(is.null(config$fasta))
 {
-  config$fasta <- list.files(config$input_dir, pattern = 'fasta') |>
+  config$fasta <- list.files(config$fasta_dir, pattern = 'fasta') |>
     grep(pattern = config$cont_fasta, invert = TRUE, value = TRUE)
-} 
+}
 if(is.null(config$taxId))
   config$taxId <- 9606
 
@@ -215,8 +226,8 @@ all_files <- factor(all_files, levels = all_files, ordered = TRUE)
 depends <- list(xlsx = c('wb_checkpoint'),
                 wb = c('protein_checkpoint', 'peptide_checkpoint'),
                 sql = c('protein_checkpoint', 'peptide_checkpoint'),
-                protein = c('processed', 'peptide_checkpoint'),
-                peptide = c('processed'),
+                protein = c('processed_checkpoint', 'peptide_checkpoint'),
+                peptide = c('processed_checkpoint'),
                 processed = c('in_file'),
                 input = character(0))
 
@@ -270,17 +281,17 @@ if(progress[stage,'load'])
 }else if(progress[stage,'run']){
 
   # contaminants
-  contam <- Biostrings::readAAStringSet(file.path(config$input_dir, config$cont_fasta))@ranges@NAMES |>
+  contam <- Biostrings::readAAStringSet(file.path(config$fasta_dir, config$cont_fasta))@ranges@NAMES |>
     str_split(fixed('|')) |>
     map_chr(~ .x[2])
-  
+
   # Load and process the data
   raw <- with(config, file.path(input_dir, in_file)) |>
     read_delim(delim = "\t", col_names = TRUE) |>
     dplyr::filter(!PG.ProteinAccessions %in% contam)
 
   ########## do protein group analysis here ##########
-  
+
   # format ratios
   if(is.null(config$ratios))
   {
@@ -295,7 +306,7 @@ if(progress[stage,'load'])
       str_split('/')
 
     config$ratios <- cbind(map_chr(tmp, ~ .x[1]), map_chr(tmp, ~ .x[2]))
-    
+
     # make sure these are all in raw$R.Condition
     if(any(!config$ratios %in% raw$R.Condition))
       stop("Not all conditions in ratios are in the raw data")
@@ -303,12 +314,12 @@ if(progress[stage,'load'])
 
 
   data <- SpectronauttoMSstatsFormat(raw, use_log_file = FALSE) %>%
-    dataProcess(logTrans      = 10,    # data comes log10 transformed? (double check)
+    dataProcess(logTrans      = 10,
                 normalization = FALSE, # use Spectronaut normalization
                 use_log_file  = FALSE)
-  
+
   ########## Filter intensities here based on ULOQ and LLOQ ##########
-  
+
   # checkpoint
   if(FALSE)
     save(raw, file = 'output/raw.RData')
@@ -325,27 +336,24 @@ if(progress[stage,'load'])
 {
   load(stage)
 }else if(progress[stage,'run']){
+
   # calculate peptide stats
   peptides <- data$FeatureLevelData %>%
 
-    dplyr::rename(abund = newABUNDANCE) %>% # newABUNDANCE is the normalized abundances
-
     group_by(PROTEIN, FEATURE, GROUP) %>%
 
-    summarize(abund = median(abund, na.rm = TRUE),
-              cv = sd(abund, na.rm = TRUE) / mean(abund, na.rm = TRUE) * 100) %>%
+    summarize(INTENSITY = median(INTENSITY, na.rm = TRUE),
+              cv = sd(ABUNDANCE, na.rm = TRUE) / mean(ABUNDANCE, na.rm = TRUE) * 100) %>%
 
     ungroup() %>%
 
     dplyr::rename(id = GROUP) %>%
 
-    pivot_wider(names_from = id, values_from = c(abund, cv))
+    pivot_wider(names_from = id, values_from = c(INTENSITY, cv))
 
 
   # extract peptide data
   peptides <- data$FeatureLevelData %>%
-
-    dplyr::rename(abund = newABUNDANCE) %>%
 
     mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
 
@@ -377,9 +385,9 @@ if(progress[stage,'load'])
                                gsub(pattern = '\\[.*?\\]', replacement = ''))) %>%
 
 
-    dplyr::select(PROTEIN, PEPTIDE, Modification, TRANSITION, FEATURE, id, abund) %>%
+    dplyr::select(PROTEIN, PEPTIDE, Modification, TRANSITION, FEATURE, id, INTENSITY) %>%
 
-    pivot_wider(names_from = id, values_from = abund) %>%
+    pivot_wider(names_from = id, values_from = INTENSITY) %>%
 
     # merge stats into peptides
     left_join(peptides, by = c('PROTEIN', 'FEATURE'))
@@ -398,7 +406,7 @@ if(progress[stage,'load'])
 {
   load(stage)
 }else if(progress[stage,'run']){
-  
+
   # contrasts
   contrasts <- matrix(0, nrow = nrow(config$ratios), ncol = length(levels(data$FeatureLevelData$GROUP)),
                       dimnames = list(paste(config$ratios[,1], '/', config$ratios[,2]),
@@ -410,61 +418,35 @@ if(progress[stage,'load'])
                   config$ratios[i,2])] <- c(1,-1)
   }
 
-  ### calculate protein stats ###
-  proteins <- groupComparison(contrast.matrix = contrasts, data = data)$ComparisonResult %>%
-
-    dplyr::select(Protein, Label, log2FC, pvalue, adj.pvalue) %>%
-
-    pivot_wider(names_from = Label, values_from = c(log2FC, pvalue, adj.pvalue))
-
-
-  ### Extract protein data ###
-  proteins <- data$ProteinLevelData %>%
-
-    mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
-           `coverage%` = NA) %>%
-
-    dplyr::select(Protein, `coverage%`, TotalGroupMeasurements, LogIntensities, id) %>%
-
-    pivot_wider(names_from = id, values_from = LogIntensities) %>%
-
-    left_join(proteins, by = c('Protein' = 'Protein'))
-
-
-  ### Add metadata ###
-
-  # all protein IDs
-  proteinIDs <- proteins$Protein |>
-    str_split(fixed(';')) |>
-    unlist()
+  ### Metadata to add ###
 
   # if we have fasta files provided, use them to get protein metadata
   if(length(config$fasta) > 0)
   {
     # read fasta
-    fasta <- map(config$fasta, ~ Biostrings::readAAStringSet(file.path(config$input_dir, .x))) |>
+    fasta <- map(config$fasta, ~ Biostrings::readAAStringSet(file.path(config$fasta_dir, .x))) |>
       AAStringSetList() |>
       unlist()
-    
+
     # get named meta data on the end of each fasta entry
     fasta_meta <- names(fasta) |>
       str_locate_all(fixed('=')) |>
-      map2(names(fasta), ~ 
-      {
-        names_start <-   .x[  ,1] - 2
-        names_end   <-   .x[  ,1] - 1
-        
-        dat_start   <-   .x[  ,1] + 1
-        dat_end     <- c(.x[-1,1] - 4, nchar(.y))
-        
-        dat <- str_sub_all(.y, dat_start, dat_end)[[1]]
-        names(dat) <- str_sub_all(.y, names_start, names_end)[[1]]
-        
-        dat
-      })
+      map2(names(fasta), ~
+             {
+               names_start <-   .x[  ,1] - 2
+               names_end   <-   .x[  ,1] - 1
+
+               dat_start   <-   .x[  ,1] + 1
+               dat_end     <- c(.x[-1,1] - 4, nchar(.y))
+
+               dat <- str_sub_all(.y, dat_start, dat_end)[[1]]
+               names(dat) <- str_sub_all(.y, names_start, names_end)[[1]]
+
+               dat
+             })
 
     # compile metadata
-    meta <- tibble(Protein = names(fasta) |> 
+    meta <- tibble(Protein = names(fasta) |>
                      str_split(fixed('|')) |>
                      map_chr(~ .x[2]),
                    Description = names(fasta) |>
@@ -475,8 +457,13 @@ if(progress[stage,'load'])
                    Organism = map_chr(fasta_meta, ~ .x['OS']),
                    Sequence = as.character(fasta))
 
-  # otherwise get UniProt metadata - manually search individual IDs here: https://www.uniprot.org/uniprotkb
+    # otherwise get UniProt metadata - manually search individual IDs here: https://www.uniprot.org/uniprotkb
   }else{
+    # all protein IDs
+    proteinIDs <- data$ProteinLevelData$Protein |>
+      str_split(fixed(';')) |>
+      unlist()
+
     meta <- UniProt.ws::select(UniProt.ws(taxId=config$taxId),
                                proteinIDs,
                                c('organism_name', 'protein_name', 'sequence')) %>%
@@ -485,11 +472,64 @@ if(progress[stage,'load'])
                     Description = Protein.names)
   }
 
-  # merge metadata into proteins
-  proteins <- proteins |>
-    mutate(primary_id = str_split(Protein, fixed(';')) |>
+
+  ### calculate protein stats ###
+  proteins <- groupComparison(contrast.matrix = contrasts, data = data)$ComparisonResult %>%
+
+    dplyr::select(Protein, Label, log2FC, pvalue, adj.pvalue) %>%
+
+    pivot_wider(names_from = Label, values_from = c(log2FC, pvalue, adj.pvalue))
+
+
+  ### Extract protein data ###
+  tmp <- data$ProteinLevelData |>
+
+    mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')')) |>   # create a unique ID for each measurement
+
+    # add summary (by median) of log intensities for each protein
+    bind_rows({data$ProteinLevelData |>
+        group_by(Protein, GROUP, TotalGroupMeasurements) |>
+        summarize(LogIntensities = median(LogIntensities, na.rm = TRUE)) |>
+        ungroup() |>
+        dplyr::rename(id = GROUP)}) |>
+
+    mutate(Intensity = 10^LogIntensities,                                  # report linear scale
+           primary_id = str_split(Protein, fixed(';')) |>                  # pick a primary protein ID for now - still need to deal with protein groups
              map_chr(~ .x[1])) |>
-    left_join(meta, by = c('primary_id' = 'Protein'))
+
+    dplyr::select(-RUN, -LogIntensities, -originalRUN, -GROUP, -SUBJECT, -NumMeasuredFeature,
+                  -MissingPercentage, -more50missing, -NumImputedFeature) |>
+
+
+    pivot_wider(names_from = id, values_from = Intensity) |>
+
+    left_join(meta, by = c('primary_id' = 'Protein')) |>                   # merge metadata into proteins
+
+    mutate(nAA = str_length(Sequence),                                     # calculate protein length
+           `coverage%` = NA,                                               # placeholder for coverage
+           `mass (kDa)` = ifelse(grepl('X', Sequence),                     # calculate protein mass in kDa (if there are unknown amino acids, we'll look this up)
+                                 NA,
+                                 Peptides::mw(as.character(Sequence)) / 1000))
+
+  # look up any masses with unknown amino acids
+  if(any(is.na(tmp$`mass (kDa)`)))
+  {
+    meta_mass <- UniProt.ws::select(UniProt.ws(taxId=config$taxId),
+                       tmp$primary_id[is.na(tmp$`mass (kDa)`)],
+                       c('mass'))
+
+    tmp$`mass (kDa)`[tmp$Protein %in% meta_mass$Entry] <- as.numeric(meta_mass$Mass) / 1000
+  }
+
+
+  # merge protein data
+  proteins <- tmp |>
+    dplyr::select(Protein, Description, Organism, Sequence, nAA, `coverage%`, `mass (kDa)`, TotalGroupMeasurements,
+                names(tmp)[!names(tmp) %in% c('Protein', 'Description', 'Organism', 'Sequence', 'nAA', 'coverage%',
+                                              'mass (kDa)', 'TotalGroupMeasurements', 'primary_id')]) |>
+
+    left_join(proteins, by = c('Protein' = 'Protein'))
+
 
   # Calculate coverage
   for(i in 1:nrow(proteins))
@@ -575,8 +615,8 @@ if(progress[stage,'load'])
     tmp <- filter(peptides, PROTEIN == proteins$Protein[i])
 
     tmp %>%
-      select(-PROTEIN) %>%
-      writeData(wb = wb, sheet = config$sheet, startRow = nextRow + 1, startCol = 2, rowNames = FALSE)
+      dplyr::select(-PROTEIN) %>%
+      writeData(wb = wb, sheet = config$sheet, startRow = nextRow + 1, startCol = 5, rowNames = FALSE)
     indices$peptide_headers <- c(indices$peptide_headers, nextRow + 1)
 
     # group and hide peptides
@@ -591,7 +631,7 @@ if(progress[stage,'load'])
                                  max(peptide_headers) + 1:dim(peptides)[1]))
 
   # format protein rows
-  addStyle(wb = wb, sheet = config$sheet, 
+  addStyle(wb = wb, sheet = config$sheet,
            style = createStyle(fgFill = config$protein_header_fill),
            rows = 1, cols = 1:dim(proteins)[2],
            gridExpand = TRUE)
@@ -605,12 +645,12 @@ if(progress[stage,'load'])
   addStyle(wb = wb, sheet = config$sheet,
            style = createStyle(fgFill = config$peptide_header_fill),
            rows = indices$peptide_headers,
-           cols = 2:max(which(!is.na(proteins[2,]))),
+           cols = 3+2:max(which(!is.na(proteins[2,]))),
            gridExpand = TRUE)
   addStyle(wb = wb, sheet = config$sheet,
            style = createStyle(fgFill = config$peptide_rows_fill),
            rows = indices$peptide_rows,
-           cols = 2:max(which(!is.na(proteins[2,]))),
+           cols = 3+2:max(which(!is.na(proteins[2,]))),
            gridExpand = TRUE)
 
   #openXL(wb)
