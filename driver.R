@@ -1,7 +1,9 @@
 
 #' configuration options
-#' Edit the `config.yml` file in this directory to change the configuration options, or include parameters via the command line.
-#' Command line parameters will override the `config.yml` file. See `config.yml` for defaults.
+#' @param config_file The name of the configuration file to use. This must be specified on
+#'  the command line. Default is `config.yml`. Edit the `config.yml` file that comes with
+#'  this repository to change the configuration options, or include parameters via the command line.
+#'  Command line parameters will override the `config.yml` file. See `config.yml` for defaults.
 
 ### Directory parameters
 #' @param input_dir The directory containing the data files (default is the current working directory).
@@ -28,7 +30,7 @@
 #'  is the Universal Contaminant file that comes with this package.
 
 ### Metadata parameters
-#' @param fasta The name of the fasta file(s) to use for annotation. If no annotation files are provided,
+#' @param fasta_meta The name of the fasta file(s) to use for annotation. If no annotation files are provided,
 #'  `fasta_dir` will be checked for fasta files different from `cont_fasta`. If none are found, UniProt
 #'   will be used for annotation.
 #' @param taxId The taxonomy ID of the organism being analyzed. Default is `9606` (human). This is used to
@@ -81,23 +83,32 @@ library(RSQLite)
 library(Biostrings)
 library(muscle)
 library(UniProt.ws)
+library(Peptides)
 
 
 ###############
 # Load config #
 ###############
 
-# read yaml file (requires config package)
-config <- config::get()
-
 # read command line arguments
 args <- commandArgs(trailingOnly = TRUE) |>
   str_split('=') |>
-  map_chr(~ .x[2])
+  map_chr(~ .x[2]) |>
+  as.list()
 
 names(args) <- commandArgs(trailingOnly = TRUE) |>
   str_split('=') |>
   map_chr(~ .x[1])
+
+if(is.null(args$config_file))
+{
+  paste("loading", args$config_file) |>
+    print()
+  args$config_file <- 'config.yml'
+}
+
+# read yaml file (requires config package)
+config <- config::get(file = args$config_file)
 
 # replace any defaults with command line arguments
 if(length(args) > 0)
@@ -140,7 +151,7 @@ if(is.null(config$sheet))
 if(is.null(config$uloq))
   config$uloq <- Inf
 if(is.null(config$lloq))
-  config$lloq <- 0
+  config$lloq <- 1
 if(is.null(config$cont_fasta))
 {
   config$cont_fasta <- 'inst/extdata/Universal Contaminants.fasta'
@@ -152,9 +163,9 @@ if(is.null(config$cont_fasta))
 
 
 ## Metadata parameters
-if(is.null(config$fasta))
+if(is.null(config$fasta_meta))
 {
-  config$fasta <- list.files(config$fasta_dir, pattern = 'fasta') |>
+  config$fasta_meta <- list.files(config$fasta_dir, pattern = 'fasta') |>
     grep(pattern = config$cont_fasta, invert = TRUE, value = TRUE)
 }
 if(is.null(config$taxId))
@@ -278,6 +289,7 @@ stage <- with(config, file.path(output_dir, processed_checkpoint))
 if(progress[stage,'load'])
 {
   load(stage)
+  config$ratios <- config_bak$ratios
 }else if(progress[stage,'run']){
 
   # contaminants
@@ -296,7 +308,7 @@ if(progress[stage,'load'])
   if(is.null(config$ratios))
   {
     config$ratios <- raw |>
-      select(R.Condition) |>
+      dplyr::select(R.Condition) |>
       distinct() |>
       pull() |>
       combn(2, simplify = TRUE) |>
@@ -318,13 +330,23 @@ if(progress[stage,'load'])
                 normalization = FALSE, # use Spectronaut normalization
                 use_log_file  = FALSE)
 
-  ########## Filter intensities here based on ULOQ and LLOQ ##########
+  ##### Filter processed data #####
+  data$FeatureLevelData <- data$FeatureLevelData |>
+    dplyr::filter(INTENSITY > config$lloq, # remove out-of-spec peptides
+                  INTENSITY < config$uloq) 
+  
+  data$ProteinLevelData <- data$ProteinLevelData |>
+    dplyr::filter(LogIntensities > log10(config$lloq), # remove out-of-spec proteins
+                  LogIntensities < log10(config$uloq))
 
   # checkpoint
   if(FALSE)
-    save(raw, file = 'output/raw.RData')
+    save(raw, file = file.path(config$output_dir, 'raw.RData'))
   if(progress[stage, 'generate'])
-    save(data, config, file = stage)
+  {
+    config_bak <- config
+    save(data, config_bak, file = stage)
+  }
 }
 
 
@@ -394,7 +416,7 @@ if(progress[stage,'load'])
 
   # checkpoint
   if(progress[stage, 'generate'])
-    save(peptides, config, file = stage)
+    save(peptides, file = stage)
 }
 
 
@@ -421,10 +443,10 @@ if(progress[stage,'load'])
   ### Metadata to add ###
 
   # if we have fasta files provided, use them to get protein metadata
-  if(length(config$fasta) > 0)
+  if(length(config$fasta_meta) > 0)
   {
     # read fasta
-    fasta <- map(config$fasta, ~ Biostrings::readAAStringSet(file.path(config$fasta_dir, .x))) |>
+    fasta <- map(config$fasta_meta, ~ Biostrings::readAAStringSet(file.path(config$fasta_dir, .x))) |>
       AAStringSetList() |>
       unlist()
 
@@ -553,8 +575,9 @@ if(progress[stage,'load'])
 
   # checkpoint
   if(progress[stage, 'generate'])
-    save(proteins, config, file = stage)
+    save(proteins, file = stage)
 }
+
 
 
 ##### Write sqlite file #####
