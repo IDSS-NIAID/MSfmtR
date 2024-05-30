@@ -69,6 +69,7 @@
 ##################
 
 library(MSstats)
+library(MSstatsConvert)
 
 library(dplyr)
 library(tidyr)
@@ -77,7 +78,6 @@ library(readr)
 library(stringr)
 
 library(openxlsx)
-library(config)
 library(RSQLite)
 
 library(Biostrings)
@@ -101,11 +101,7 @@ names(args) <- commandArgs(trailingOnly = TRUE) |>
   map_chr(~ .x[1])
 
 if(is.null(args$config_file))
-{
-  paste("loading", args$config_file) |>
-    print()
   args$config_file <- 'config.yml'
-}
 
 # read yaml file (requires config package)
 config <- config::get(file = args$config_file)
@@ -325,16 +321,21 @@ if(progress[stage,'load'])
   }
 
 
-  data <- SpectronauttoMSstatsFormat(raw, use_log_file = FALSE) %>%
-    dataProcess(logTrans      = 10,
-                normalization = FALSE, # use Spectronaut normalization
+  data <- SpectronauttoMSstatsFormat(raw,
+                                     intensity = 'NormalizedPeakArea', # use Spectronaut normalization
+                                     filter_with_Qvalue = FALSE,
+                                     removeFewMeasurements = FALSE,
+                                     use_log_file = FALSE) %>%
+    dataProcess(data,
+                logTrans      = 10,
+                normalization = FALSE,                          # use Spectronaut normalization
                 use_log_file  = FALSE)
 
   ##### Filter processed data #####
   data$FeatureLevelData <- data$FeatureLevelData |>
     dplyr::filter(INTENSITY > config$lloq, # remove out-of-spec peptides
-                  INTENSITY < config$uloq) 
-  
+                  INTENSITY < config$uloq)
+
   data$ProteinLevelData <- data$ProteinLevelData |>
     dplyr::filter(LogIntensities > log10(config$lloq), # remove out-of-spec proteins
                   LogIntensities < log10(config$uloq))
@@ -360,16 +361,18 @@ if(progress[stage,'load'])
 }else if(progress[stage,'run']){
 
   # calculate peptide stats
-  peptides <- data$FeatureLevelData %>%
+  peptides_long <- data$FeatureLevelData %>%
 
     group_by(PROTEIN, FEATURE, GROUP) %>%
 
     summarize(INTENSITY = median(INTENSITY, na.rm = TRUE),
               cv = sd(ABUNDANCE, na.rm = TRUE) / mean(ABUNDANCE, na.rm = TRUE) * 100) %>%
 
-    ungroup() %>%
+    ungroup()
 
-    dplyr::rename(id = GROUP) %>%
+
+  peptides <- peptides_long |>
+    dplyr::rename(id = GROUP) |>
 
     pivot_wider(names_from = id, values_from = c(INTENSITY, cv))
 
@@ -413,6 +416,18 @@ if(progress[stage,'load'])
 
     # merge stats into peptides
     left_join(peptides, by = c('PROTEIN', 'FEATURE'))
+
+  if(FALSE)
+  {
+    library(ggplot2)
+    library(cowplot)
+    theme_set(theme_cowplot())
+
+    peptides_long %>%
+      ggplot(aes(x = cv, y = INTENSITY)) +
+      geom_point() +
+      facet_wrap(~GROUP)
+  }
 
   # checkpoint
   if(progress[stage, 'generate'])
@@ -560,7 +575,7 @@ if(progress[stage,'load'])
        next
 
     seqs <- c(Biostrings::AAStringSet(proteins$Sequence[i]),
-              Biostrings::AAStringSet(filter(peptides, PROTEIN == proteins$Protein[i])$PEPTIDE %>% unique()))
+              Biostrings::AAStringSet(filter(peptides, PROTEIN == as.character(proteins$Protein[i]))$PEPTIDE %>% unique()))
 
     # align sequences and convert to matrix
     aligned <- muscle::muscle(seqs) %>%
@@ -635,7 +650,7 @@ if(progress[stage,'load'])
     indices$protein_rows <- c(indices$protein_rows, nextRow)
 
     # add peptides
-    tmp <- filter(peptides, PROTEIN == proteins$Protein[i])
+    tmp <- filter(peptides, PROTEIN == as.character(proteins$Protein[i]))
 
     tmp %>%
       dplyr::select(-PROTEIN) %>%

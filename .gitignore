@@ -12,3 +12,4 @@ data/
 output/
 
 *.log
+*.yml
