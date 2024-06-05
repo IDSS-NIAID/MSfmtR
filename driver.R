@@ -414,6 +414,8 @@ if(progress[stage,'load'])
 
     pivot_wider(names_from = id, values_from = INTENSITY) %>%
 
+    arrange(id) |> # sort by id - this keeps column names in the same order as in `proteins`
+
     # merge stats into peptides
     left_join(peptides, by = c('PROTEIN', 'FEATURE'))
 
@@ -539,6 +541,8 @@ if(progress[stage,'load'])
 
 
     pivot_wider(names_from = id, values_from = Intensity) |>
+
+    arrange(id) |>                                                        # sort by ID - this keeps column names in the same order as in `peptides`
 
     left_join(meta, by = c('primary_id' = 'Protein')) |>                   # merge metadata into proteins
 
