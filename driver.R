@@ -41,6 +41,7 @@
 #'  in `in_file`. Each ratio in the list should be of the form "<group1>/<group2>", so for group1=Case and
 #'  group2=Control, the ratio would be "Case/Control". These labels should match values in the `R.Condition`
 #'  column of `in_file`.
+#'  @param normMeasure The normalization measure to use - pick from `NormalizedPeakArea` and `NormalizedPeakHeight`. Default is `NormalizedPeakArea`.
 
 ### Style parameters
 #' @param protein_header_fill The fill color for the protein header in the output Excel file.
@@ -170,6 +171,9 @@ if(is.null(config$taxId))
 
 ## MSStats parameters
 # if ratios is null, we'll fill it in after reading in the raw data
+
+if(is.null(config$normMeasure))
+  config$normMeasure <- 'NormalizedPeakArea'
 
 
 ## Style parameters
@@ -321,24 +325,66 @@ if(progress[stage,'load'])
   }
 
 
-  data <- SpectronauttoMSstatsFormat(raw,
-                                     intensity = 'NormalizedPeakArea', # use Spectronaut normalization
-                                     filter_with_Qvalue = FALSE,
-                                     removeFewMeasurements = FALSE,
-                                     use_log_file = FALSE) %>%
-    dataProcess(data,
-                logTrans      = 10,
-                normalization = FALSE,                          # use Spectronaut normalization
-                use_log_file  = FALSE)
+  # peptide-level data (see documentation of `MSstats::dataProcess` at https://www.bioconductor.org/packages/devel/bioc/vignettes/MSstats/inst/doc/MSstats.html)
+  FeatureLevelData <- raw |>
 
-  ##### Filter processed data #####
-  data$FeatureLevelData <- data$FeatureLevelData |>
+    mutate(PROTEIN = factor(PG.ProteinAccessions),
+           PEPTIDE = factor(PEP.GroupingKey),
+           TRANSITION = factor(F.FrgIon),
+           FEATURE = str_replace(EG.PrecursorId, "_", "") |>
+             str_replace("_.", "_") |>
+             paste0('_', F.FrgIon) |>
+             factor(),
+           LABEL = 'L',                                                                       ##### don't know what this is
+           GROUP = factor(R.Condition),
+           SUBJECT  = factor(R.Replicate),
+           FRACTION = 1,                                                                      ##### don't know what this is
+           originalRUN = factor(R.FileName, levels = unique(R.FileName[order(R.Condition)])), # this is the ordering MSstats uses
+           RUN = as.numeric(originalRUN) |> as.factor(),
+           censored = FALSE,
+           INTENSITY = ifelse(rep(config$normMeasure == 'NormalizedPeakArea', nrow(raw)),
+                              F.NormalizedPeakArea,
+                              F.NormalizedPeakHeight),
+           ABUNDANCE = log10(INTENSITY),
+           newABUNDANCE = ABUNDANCE) |>
+
+    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, LABEL, GROUP, RUN, SUBJECT,
+                  FRACTION, originalRUN, censored, INTENSITY, ABUNDANCE, newABUNDANCE, PG.Quantity) |> # only using PG.Quantity for protein-level data. Drop it later.
+
     dplyr::filter(INTENSITY > config$lloq, # remove out-of-spec peptides
                   INTENSITY < config$uloq)
 
-  data$ProteinLevelData <- data$ProteinLevelData |>
-    dplyr::filter(LogIntensities > log10(config$lloq), # remove out-of-spec proteins
-                  LogIntensities < log10(config$uloq))
+
+  # protein-level data
+  ProteinLevelData = FeatureLevelData |>
+
+    group_by(RUN, PROTEIN) |>
+    mutate(NumMeasuredFeature = n(),
+           MissingPercentage = sum(INTENSITY < 1) / n(),
+           more50missing = MissingPercentage > 0.5,
+           NumImputedFeature = sum(is.na(INTENSITY))) |>
+    ungroup() |>
+
+    group_by(GROUP, PROTEIN) |>
+    mutate(TotalGroupMeasurements = n()) |>
+    ungroup() |>
+
+    dplyr::select(RUN, PROTEIN, originalRUN, GROUP, SUBJECT, PG.Quantity,                          # only keep protein-specific info
+                  TotalGroupMeasurements, NumMeasuredFeature, MissingPercentage, more50missing) |> # plus some summary stats
+    unique() |>
+
+    mutate(LogIntensities = log10(PG.Quantity),
+           NumImputedFeature = 0) |>
+
+    dplyr::select(RUN, PROTEIN, LogIntensities, originalRUN, GROUP, SUBJECT, TotalGroupMeasurements,
+                  NumMeasuredFeature, MissingPercentage, more50missing, NumImputedFeature)
+
+
+  # save data
+  data <- list(FeatureLevelData = dplyr::select(FeatureLevelData, -PG.Quantity),
+               ProteinLevelData = ProteinLevelData,
+               SummaryMethod = 'linear')
+
 
   # checkpoint
   if(FALSE)
