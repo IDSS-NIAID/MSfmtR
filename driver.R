@@ -423,12 +423,14 @@ if(progress[stage,'load'])
 
 
   # extract peptide data
-  peptides <- data$FeatureLevelData %>%
+  peptides <- data$FeatureLevelData[1:100,] |>
+
+    unique() |>
 
     mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
 
            # split modifications out into a different column
-           Modification = map_chr(PEPTIDE, ~
+           Modification = map_chr(FEATURE, ~
                                     {
                                       openMod <- str_locate_all(.x, fixed('[')) %>%
                                         unlist() %>%
@@ -448,24 +450,23 @@ if(progress[stage,'load'])
                                       }
 
                                       return(mod)
-                                    }),
-
-           PEPTIDE = map_chr(PEPTIDE, ~ strsplit(as.character(.x),
-                                                 split = '_', fixed = TRUE)[[1]][1] %>%
-                               gsub(pattern = '\\[.*?\\]', replacement = ''))) %>%
+                                    })) %>%
 
 
     dplyr::select(PROTEIN, PEPTIDE, Modification, TRANSITION, FEATURE, id, INTENSITY) %>%
 
-    pivot_wider(names_from = id, values_from = INTENSITY) %>%
-
     arrange(id) |> # sort by id - this keeps column names in the same order as in `proteins`
+
+    unique() |> # remove duplicates - these do appear rarely in the data
+
+    pivot_wider(names_from = id, values_from = INTENSITY) %>%
 
     # merge stats into peptides
     left_join(peptides, by = c('PROTEIN', 'FEATURE'))
 
   if(FALSE)
   {
+    # some diagnostic plots for looking at peptides_long
     library(ggplot2)
     library(cowplot)
     theme_set(theme_cowplot())
