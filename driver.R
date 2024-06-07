@@ -331,13 +331,12 @@ if(progress[stage,'load'])
     mutate(PROTEIN = factor(PG.ProteinAccessions),
            PEPTIDE = factor(PEP.GroupingKey),
            TRANSITION = factor(F.FrgIon),
-           FEATURE = str_replace(EG.PrecursorId, "_", "") |>
-             str_replace("_.", "_") |>
-             paste0('_', F.FrgIon) |>
+           FEATURE = str_replace_all(EG.PrecursorId, "_", "") |>
+             paste0('_', F.FrgIon, '_', F.Charge, '_', F.FrgLossType) |>
              factor(),
            LABEL = 'L',                                                                       ##### don't know what this is
            GROUP = factor(R.Condition),
-           SUBJECT  = factor(R.Replicate),
+           SUBJECT = factor(R.Replicate),
            FRACTION = 1,                                                                      ##### don't know what this is
            originalRUN = factor(R.FileName, levels = unique(R.FileName[order(R.Condition)])), # this is the ordering MSstats uses
            RUN = as.numeric(originalRUN) |> as.factor(),
