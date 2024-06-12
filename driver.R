@@ -326,18 +326,28 @@ if(progress[stage,'load'])
 
 
   # peptide-level data (see documentation of `MSstats::dataProcess` at https://www.bioconductor.org/packages/devel/bioc/vignettes/MSstats/inst/doc/MSstats.html)
-  FeatureLevelData <- raw |>
+  raw <- raw |>
 
+    # Figure out unique ID for each FrgIon (not unique)
+    group_by(PG.ProteinAccessions, EG.PrecursorId, F.FrgIon) |>
+    mutate(FrgIon.uid = paste(EG.PrecursorId, F.FrgIon, F.Charge, F.FrgLossType, sep = "_") |> 
+             factor() |>
+             as.numeric()) |>
+    ungroup() |>
+
+    # format information for FeatureLevelData
     mutate(PROTEIN = factor(PG.ProteinAccessions),
-           PEPTIDE = factor(PEP.GroupingKey),
-           TRANSITION = factor(F.FrgIon),
-           FEATURE = str_replace_all(EG.PrecursorId, "_", "") |>
-             paste0('_', F.FrgIon, '_', F.Charge, '_', F.FrgLossType) |>
+           PEPTIDE = str_replace(EG.PrecursorId, "_", "") |>
+             str_replace("_.", "_") |>
              factor(),
-           LABEL = 'L',                                                                       ##### don't know what this is
+           TRANSITION = paste(F.FrgIon, FrgIon.uid, sep = '_') |>
+             factor(),
+           FEATURE = paste(PEPTIDE, TRANSITION, sep = '_') |>
+             factor(),
+           LABEL = factor('L'),                                                               ##### don't know what this is
            GROUP = factor(R.Condition),
            SUBJECT = factor(R.Replicate),
-           FRACTION = 1,                                                                      ##### don't know what this is
+           FRACTION = as.integer(1),                                                          ##### don't know what this is
            originalRUN = factor(R.FileName, levels = unique(R.FileName[order(R.Condition)])), # this is the ordering MSstats uses
            RUN = as.numeric(originalRUN) |> as.factor(),
            censored = FALSE,
@@ -345,8 +355,12 @@ if(progress[stage,'load'])
                               F.NormalizedPeakArea,
                               F.NormalizedPeakHeight),
            ABUNDANCE = log10(INTENSITY),
-           newABUNDANCE = ABUNDANCE) |>
+           newABUNDANCE = ABUNDANCE,
+           predicted = as.numeric(NA))
 
+  # create FeatureLevelData and filter
+  FeatureLevelData <- raw |>
+    
     dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, LABEL, GROUP, RUN, SUBJECT,
                   FRACTION, originalRUN, censored, INTENSITY, ABUNDANCE, newABUNDANCE, PG.Quantity) |> # only using PG.Quantity for protein-level data. Drop it later.
 
@@ -376,7 +390,9 @@ if(progress[stage,'load'])
            NumImputedFeature = 0) |>
 
     dplyr::select(RUN, PROTEIN, LogIntensities, originalRUN, GROUP, SUBJECT, TotalGroupMeasurements,
-                  NumMeasuredFeature, MissingPercentage, more50missing, NumImputedFeature)
+                  NumMeasuredFeature, MissingPercentage, more50missing, NumImputedFeature) |>
+    
+    dplyr::rename(Protein = PROTEIN)
 
 
   # save data
@@ -384,15 +400,17 @@ if(progress[stage,'load'])
                ProteinLevelData = ProteinLevelData,
                SummaryMethod = 'linear')
 
-
-  # checkpoint
   if(FALSE)
     save(raw, file = file.path(config$output_dir, 'raw.RData'))
+  # checkpoint
   if(progress[stage, 'generate'])
   {
     config_bak <- config
     save(data, config_bak, file = stage)
   }
+  
+  # clean up / memory management
+  rm(raw, FeatureLevelData, ProteinLevelData)
 }
 
 
