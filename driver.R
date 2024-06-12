@@ -495,6 +495,8 @@ if(progress[stage,'load'])
       ggplot(aes(x = cv, y = INTENSITY)) +
       geom_point() +
       facet_wrap(~GROUP)
+  }else{
+    rm(peptides_long)
   }
 
   # checkpoint
@@ -579,7 +581,9 @@ if(progress[stage,'load'])
 
 
   ### calculate protein stats ###
-  proteins <- groupComparison(contrast.matrix = contrasts, data = data)$ComparisonResult %>%
+  proteins <- groupComparison(contrast.matrix = contrasts,
+                              data = data,
+                              use_log_file = FALSE)$ComparisonResult %>%
 
     dplyr::select(Protein, Label, log2FC, pvalue, adj.pvalue) %>%
 
