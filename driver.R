@@ -441,11 +441,13 @@ if(progress[stage,'load'])
 
 
   # extract peptide data
-  peptides <- data$FeatureLevelData[1:100,] |>
-
-    unique() |>
+  peptides <- data$FeatureLevelData |>
 
     mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
+           
+           PEPTIDE = map_chr(PEPTIDE, ~ strsplit(as.character(.x),
+                                                  split = '_', fixed = TRUE)[[1]][1] |>
+                               gsub(pattern = '\\[.*?\\]', replacement = '')),
 
            # split modifications out into a different column
            Modification = map_chr(FEATURE, ~
@@ -600,13 +602,12 @@ if(progress[stage,'load'])
            primary_id = str_split(Protein, fixed(';')) |>                  # pick a primary protein ID for now - still need to deal with protein groups
              map_chr(~ .x[1])) |>
 
+    arrange(is.na(GROUP), id) |>                                          # sort by ID - this keeps column names in the same order as in `peptides`
+    
     dplyr::select(-RUN, -LogIntensities, -originalRUN, -GROUP, -SUBJECT, -NumMeasuredFeature,
                   -MissingPercentage, -more50missing, -NumImputedFeature) |>
 
-
     pivot_wider(names_from = id, values_from = Intensity) |>
-
-    arrange(id) |>                                                        # sort by ID - this keeps column names in the same order as in `peptides`
 
     left_join(meta, by = c('primary_id' = 'Protein')) |>                   # merge metadata into proteins
 
@@ -649,7 +650,7 @@ if(progress[stage,'load'])
     aligned <- muscle::muscle(seqs) %>%
       as.matrix()
 
-    # calculate coverage
+    # calculate coverage (proportion of non-dashes in the alignment)
     coverage <- {aligned != '-'} %>%
       colSums()
 
