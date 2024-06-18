@@ -300,7 +300,8 @@ if(progress[stage,'load'])
   # Load and process the data
   raw <- with(config, file.path(input_dir, in_file)) |>
     read_delim(delim = "\t", col_names = TRUE) |>
-    dplyr::filter(!PG.ProteinAccessions %in% contam)
+    dplyr::filter(!PG.ProteinAccessions %in% contam & 
+                  !grepl('Cont_', PG.ProteinAccessions, fixed = TRUE))
 
   ########## do protein group analysis here ##########
 
@@ -581,14 +582,15 @@ if(progress[stage,'load'])
 
 
   ### calculate protein stats ###
-  proteins <- groupComparison(contrast.matrix = contrasts,
+  proteins <- groupComparison(contrast.matrix = contrasts, 
                               data = data,
-                              use_log_file = FALSE)$ComparisonResult %>%
+                              use_log_file = FALSE)$ComparisonResult |>
+    
+    dplyr::filter(!is.na(Protein)) |>
 
-    dplyr::select(Protein, Label, log2FC, pvalue, adj.pvalue) %>%
+    dplyr::select(Protein, Label, log2FC, pvalue, adj.pvalue) |>
 
     pivot_wider(names_from = Label, values_from = c(log2FC, pvalue, adj.pvalue))
-
 
   ### Extract protein data ###
   tmp <- data$ProteinLevelData |>
@@ -597,7 +599,7 @@ if(progress[stage,'load'])
 
     # add summary (by median) of log intensities for each protein
     bind_rows({data$ProteinLevelData |>
-        group_by(Protein, GROUP, TotalGroupMeasurements) |>
+        group_by(Protein, GROUP) |>
         summarize(LogIntensities = median(LogIntensities, na.rm = TRUE)) |>
         ungroup() |>
         dplyr::rename(id = GROUP)}) |>
@@ -606,37 +608,39 @@ if(progress[stage,'load'])
            primary_id = str_split(Protein, fixed(';')) |>                  # pick a primary protein ID for now - still need to deal with protein groups
              map_chr(~ .x[1])) |>
 
-    arrange(is.na(GROUP), id) |>                                          # sort by ID - this keeps column names in the same order as in `peptides`
+    arrange(is.na(GROUP), id) |>                                           # sort by ID - this keeps column names in the same order as in `peptides`
     
     dplyr::select(-RUN, -LogIntensities, -originalRUN, -GROUP, -SUBJECT, -NumMeasuredFeature,
-                  -MissingPercentage, -more50missing, -NumImputedFeature) |>
+                  -MissingPercentage, -more50missing, -NumImputedFeature, -TotalGroupMeasurements) |>
 
     pivot_wider(names_from = id, values_from = Intensity) |>
 
     left_join(meta, by = c('primary_id' = 'Protein')) |>                   # merge metadata into proteins
-
+    
     mutate(nAA = str_length(Sequence),                                     # calculate protein length
            `coverage%` = NA,                                               # placeholder for coverage
-           `mass (kDa)` = ifelse(grepl('X', Sequence),                     # calculate protein mass in kDa (if there are unknown amino acids, we'll look this up)
-                                 NA,
-                                 Peptides::mw(as.character(Sequence)) / 1000))
+           `mass (kDa)` = NA)                                              # placeholder for mass
+
+  # calculate masses
+  skip <- grepl('X', tmp$Sequence) & !is.na(tmp$Sequence) # skip these that have unknown amino acids
+  tmp$`mass (kDa)`[!skip] <- Peptides::mw(as.character(tmp$Sequence[!skip]))
 
   # look up any masses with unknown amino acids
-  if(any(is.na(tmp$`mass (kDa)`)))
+  if(any(skip))
   {
     meta_mass <- UniProt.ws::select(UniProt.ws(taxId=config$taxId),
-                       tmp$primary_id[is.na(tmp$`mass (kDa)`)],
+                       tmp$primary_id[skip],
                        c('mass'))
 
-    tmp$`mass (kDa)`[tmp$Protein %in% meta_mass$Entry] <- as.numeric(meta_mass$Mass) / 1000
+    tmp$`mass (kDa)`[skip] <- as.numeric(meta_mass$Mass) / 1000
   }
 
 
   # merge protein data
   proteins <- tmp |>
-    dplyr::select(Protein, Description, Organism, Sequence, nAA, `coverage%`, `mass (kDa)`, TotalGroupMeasurements,
-                names(tmp)[!names(tmp) %in% c('Protein', 'Description', 'Organism', 'Sequence', 'nAA', 'coverage%',
-                                              'mass (kDa)', 'TotalGroupMeasurements', 'primary_id')]) |>
+    dplyr::select(Protein, Description, Organism, Sequence,
+                names(tmp)[!names(tmp) %in% c('Protein', 'Description', 'Organism', 'Sequence', 
+                                              'primary_id')]) |>
 
     left_join(proteins, by = c('Protein' = 'Protein'))
 
