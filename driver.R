@@ -638,9 +638,13 @@ if(progress[stage,'load'])
 
   # merge protein data
   proteins <- tmp |>
-    dplyr::select(Protein, Description, Organism, Sequence,
-                names(tmp)[!names(tmp) %in% c('Protein', 'Description', 'Organism', 'Sequence', 
+    dplyr::select(Protein, Description, Organism,
+                names(tmp)[!names(tmp) %in% c('Protein', 'Description', 'Organism', 
                                               'primary_id')]) |>
+    
+    mutate(Description = str_split(Description, fixed('_')) |>
+             map_chr(~ .x[[2]]) |>
+             str_replace(' OS$', '')) |>
 
     left_join(proteins, by = c('Protein' = 'Protein'))
 
@@ -696,6 +700,9 @@ if(progress[stage,'load'])
 {
   load(stage)
 }else if(progress[stage,'run']){
+  # infer number of columns to indent peptides
+  peptide_indent <- 1
+  
   # connect to the database
   con <- dbConnect(SQLite(), dbname = with(config, file.path(output_dir, out_sqlite)))
 
@@ -713,10 +720,17 @@ if(progress[stage,'load'])
                   peptide_headers = integer(),
                   peptide_rows    = integer())
 
-  for(i in 1:dim(proteins)[1])
+  for(i in 1:3)#dim(proteins)[1])
   {
-    proteins[i,] %>%
-      writeData(wb = wb, sheet = config$sheet, startRow = nextRow, startCol = 1, rowNames = FALSE,
+    proteins[i,] |>
+      
+      mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA
+      
+      writeData(wb = wb,
+                sheet = config$sheet,
+                startRow = nextRow,
+                startCol = 1,
+                rowNames = FALSE,
                 colNames = i == 1)
 
     # account for header row on the first protein
@@ -730,8 +744,16 @@ if(progress[stage,'load'])
     tmp <- filter(peptides, PROTEIN == as.character(proteins$Protein[i]))
 
     tmp %>%
-      dplyr::select(-PROTEIN) %>%
-      writeData(wb = wb, sheet = config$sheet, startRow = nextRow + 1, startCol = 5, rowNames = FALSE)
+      dplyr::select(-PROTEIN) |>
+      
+      mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA
+      
+      writeData(wb = wb, 
+                sheet = config$sheet,
+                startRow = nextRow + 1, 
+                startCol = peptide_indent, 
+                rowNames = FALSE)
+    
     indices$peptide_headers <- c(indices$peptide_headers, nextRow + 1)
 
     # group and hide peptides
@@ -746,24 +768,37 @@ if(progress[stage,'load'])
                                  max(peptide_headers) + 1:dim(peptides)[1]))
 
   # format protein rows
-  addStyle(wb = wb, sheet = config$sheet,
-           style = createStyle(fgFill = config$protein_header_fill),
-           rows = 1, cols = 1:dim(proteins)[2],
+  addStyle(wb = wb,
+           sheet = config$sheet,
+           style = createStyle(fgFill = config$protein_header_fill,
+                               borderColour = openxlsx_getOp("borderColour", "black"),
+                               border = "LeftRight"),
+           rows = 1,
+           cols = 1:dim(proteins)[2],
            gridExpand = TRUE)
-  addStyle(wb = wb, sheet = config$sheet,
-           style = createStyle(fgFill = config$protein_rows_fill),
+  addStyle(wb = wb,
+           sheet = config$sheet,
+           style = createStyle(fgFill = config$protein_rows_fill,
+                               borderColour = openxlsx_getOp("borderColour", "grey70"),
+                               border = "TopBottomLeftRight"),
            rows = indices$protein_rows,
            cols = 1:dim(proteins)[2],
            gridExpand = TRUE)
 
   # format peptide rows
-  addStyle(wb = wb, sheet = config$sheet,
-           style = createStyle(fgFill = config$peptide_header_fill),
+  addStyle(wb = wb,
+           sheet = config$sheet,
+           style = createStyle(fgFill = config$peptide_header_fill,
+                               borderColour = openxlsx_getOp("borderColour", "black"),
+                               border = "LeftRight"),
            rows = indices$peptide_headers,
            cols = 3+2:max(which(!is.na(proteins[2,]))),
            gridExpand = TRUE)
-  addStyle(wb = wb, sheet = config$sheet,
-           style = createStyle(fgFill = config$peptide_rows_fill),
+  addStyle(wb = wb,
+           sheet = config$sheet,
+           style = createStyle(fgFill = config$peptide_rows_fill,
+                               borderColour = openxlsx_getOp("borderColour", "grey70"),
+                               border = "TopBottomLeftRight"),
            rows = indices$peptide_rows,
            cols = 3+2:max(which(!is.na(proteins[2,]))),
            gridExpand = TRUE)
