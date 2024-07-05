@@ -1,7 +1,7 @@
 
 process_peptides <- function(data, config,
                              stage = file.path(config$output_dir, config$peptide_checkpoint),
-                             save_intermediate = FALSE)
+                             save_intermediate = TRUE)
 {
   # calculate peptide stats
   peptides_long <- data$FeatureLevelData %>%
@@ -75,8 +75,6 @@ process_peptides <- function(data, config,
       ggplot(aes(x = cv, y = INTENSITY)) +
       geom_point() +
       facet_wrap(~GROUP)
-  }else{
-    rm(peptides_long)
   }
 
   # checkpoint

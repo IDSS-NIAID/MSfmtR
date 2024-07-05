@@ -1,6 +1,7 @@
 
-process_proteins <- function(data, config,
-                             stage = file.path(config$output_dir, config$peptide_checkpoint))
+process_proteins <- function(data, peptides, config,
+                             stage = file.path(config$output_dir, config$protein_checkpoint),
+                             save_intermediate = TRUE)
 {
   # contrasts
   contrasts <- matrix(0, nrow = nrow(config$ratios), ncol = length(levels(data$FeatureLevelData$GROUP)),

@@ -1,7 +1,7 @@
 
 process_wb <- function(proteins, peptides, config,
                        stage = file.path(config$output_dir, config$wb_checkpoint),
-                       save_intermediate = FALSE)
+                       save_intermediate = TRUE)
 {
   # infer number of columns to indent peptides
   peptide_indent <- 1
@@ -23,7 +23,7 @@ process_wb <- function(proteins, peptides, config,
                     peptide_headers = FALSE,
                     peptide_rows    = FALSE)
 
-  for(i in 1:3)#dim(proteins)[1])
+  for(i in 1:dim(proteins)[1])
   {
     proteins[i,] |>
 

@@ -91,6 +91,7 @@ source('R/check_progress.R')
 source('R/process_raw.R')
 source('R/process_peptides.R')
 source('R/process_proteins.R')
+source('R/process_wb.R')
 
 ###############
 # Load config #
@@ -154,7 +155,7 @@ if(progress[stage,'load'])
 {
   load(stage)
 }else if(progress[stage,'run']){
-
+  proteins <- process_proteins(data, peptides, config, save_intermediate = progress[stage, 'generate'])
 }
 
 

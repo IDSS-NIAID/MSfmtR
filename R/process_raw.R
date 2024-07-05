@@ -1,6 +1,6 @@
 
 process_raw <- function(config, stage = file.path(config$output_dir, config$processed_checkpoint),
-                        save_intermediate = FALSE)
+                        save_intermediate = TRUE)
 {
 
   # contaminants
