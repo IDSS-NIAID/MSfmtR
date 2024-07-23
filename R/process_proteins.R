@@ -135,7 +135,9 @@ process_proteins <- function(data, peptides, config,
              str_replace(' OS$', '')) |>
 
     left_join({group_by(peptides, PROTEIN) |>
-               summarize(Modifications = paste0(unique(Modification), collapse = '; ')) |>
+               summarize(Modifications = unique(Modification) |>
+                           grep(pattern = '^\\s*$', invert = TRUE, value = TRUE) |> # get rid of empty strings
+                           paste0(collapse = '; ')) |>
                ungroup()},
               by = c('Protein' = 'PROTEIN')) |>               # merge in modification summary
 
