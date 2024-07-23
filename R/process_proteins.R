@@ -83,14 +83,15 @@ process_proteins <- function(data, peptides, config,
   ### Extract protein data ###
   tmp <- data$ProteinLevelData |>
 
-    mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')')) |>   # create a unique ID for each measurement
+    mutate(id = paste0('Abundance: ', GROUP, ', ', originalRUN, ' (', SUBJECT, ')')) |>   # create a unique ID for each measurement
 
     # add summary (by median) of log intensities for each protein
     bind_rows({data$ProteinLevelData |>
         group_by(Protein, GROUP) |>
         summarize(LogIntensities = median(LogIntensities, na.rm = TRUE)) |>
         ungroup() |>
-        dplyr::rename(id = GROUP)}) |>
+        dplyr::rename(id = GROUP) |>
+        mutate(id = paste('Group Abundance: ', id))}) |>
 
     mutate(Intensity = 10^LogIntensities,                                  # report linear scale
            primary_id = str_split(Protein, fixed(';')) |>                  # pick a primary protein ID for now - still need to deal with protein groups

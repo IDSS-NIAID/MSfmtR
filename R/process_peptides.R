@@ -14,16 +14,22 @@ process_peptides <- function(data, config,
     ungroup()
 
 
+  # summary data
   peptides <- peptides_long |>
     dplyr::rename(id = GROUP) |>
 
     pivot_wider(names_from = id, values_from = c(INTENSITY, cv))
 
+  # update names to match protein data
+  names(peptides) <- names(peptides) |>
+    str_replace_all(pattern = fixed('INTENSITY_'), replacement = 'Group Abundance: ') |>
+    str_replace_all(pattern = fixed('cv_'), replacement = 'CV: ')
+
 
   # extract peptide data
   peptides <- data$FeatureLevelData |>
 
-    mutate(id = paste0(GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
+    mutate(id = paste0('Abundance: ', GROUP, ', ', originalRUN, ' (', SUBJECT, ')'),
 
            PEPTIDE = map_chr(PEPTIDE, ~ strsplit(as.character(.x),
                                                  split = '_', fixed = TRUE)[[1]][1] |>
