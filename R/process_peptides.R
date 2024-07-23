@@ -18,6 +18,8 @@ process_peptides <- function(data, config,
   peptides <- peptides_long |>
     dplyr::rename(id = GROUP) |>
 
+    arrange(id) |> # sort by id - this keeps column names in the same order as in `proteins`
+
     pivot_wider(names_from = id, values_from = c(INTENSITY, cv))
 
   # update names to match protein data
