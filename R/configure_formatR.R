@@ -1,8 +1,18 @@
 
 configure_formatR <- function(config_file = NULL, args = NULL)
 {
+  if(!is.null(args$config_file))
+  {
+    config_file <- args$config_file
+  }
+
   # read yaml file (requires config package)
-  config <- config::get(file = config_file)
+  if(!is.null(config_file))
+  {
+    config <- config::get(file = config_file)
+  }else{
+    config <- list()
+  }
 
   # replace any defaults with command line arguments
   if(length(args) > 0)

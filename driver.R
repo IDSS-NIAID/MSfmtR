@@ -108,7 +108,7 @@ names(args) <- commandArgs(trailingOnly = TRUE) |>
   map_chr(~ .x[1])
 
 # load configurations
-config <- configure_formatR(config_file = 'config_aspinwall2.yml',
+config <- configure_formatR(#config_file = 'config_aspinwall2.yml',
                             args = args)
 
 ##################

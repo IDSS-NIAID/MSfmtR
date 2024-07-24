@@ -155,14 +155,17 @@ process_proteins <- function(data, peptides, config,
               Biostrings::AAStringSet(filter(peptides, PROTEIN == as.character(proteins$Protein[i]))$PEPTIDE %>% unique()))
 
     # align sequences and convert to matrix
-    aligned <- muscle::muscle(seqs) %>%
-      as.matrix()
+    aligned <- try({muscle::muscle(seqs) %>%
+                    as.matrix()})
 
     # calculate coverage (proportion of non-dashes in the alignment)
-    coverage <- {aligned != '-'} %>%
-      colSums()
-
-    proteins$`coverage%`[i] <- sum(coverage > 1) / length(coverage) * 100
+    if(! 'try-error' %in% class(aligned))
+    {
+      coverage <- {aligned != '-'} %>%
+        colSums()
+      
+      proteins$`coverage%`[i] <- sum(coverage > 1) / length(coverage) * 100
+    }
   }
 
   # checkpoint
