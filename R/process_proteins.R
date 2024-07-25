@@ -91,7 +91,7 @@ process_proteins <- function(data, peptides, config,
         summarize(LogIntensities = median(LogIntensities, na.rm = TRUE)) |>
         ungroup() |>
         dplyr::rename(id = GROUP) |>
-        mutate(id = paste('Group Abundance: ', id))}) |>
+        mutate(id = paste0('Group Abundance: ', id))}) |>
 
     mutate(Intensity = 10^LogIntensities,                                  # report linear scale
            primary_id = str_split(Protein, fixed(';')) |>                  # pick a primary protein ID for now - still need to deal with protein groups

@@ -22,15 +22,18 @@ process_wb <- function(proteins, peptides, config,
                             starts_with('Group Abundance'),
                             starts_with('cv'))
 
+  # fix a bug in 63456e without rerunning the whole thing
+  names(proteins) <- str_replace_all(names(proteins), '  ', ' ')
+  
   # make sure columns line up
-  if(any(starts_with('Abundance', vars = names(proteins)) !=
-         starts_with('Abundance', vars = names(peptides))))
+  if(any(names(proteins)[starts_with('Abundance', vars = names(proteins))] !=
+         names(peptides)[starts_with('Abundance', vars = names(peptides))]))
   {
     stop('Abundance columns do not match between proteins and peptides')
   }
 
-  if(any(starts_with('Group Abundance', vars = names(proteins)) !=
-         starts_with('Group Abundance', vars = names(peptides))))
+  if(any(names(proteins)[starts_with('Group Abundance', vars = names(proteins))] !=
+         names(peptides)[starts_with('Group Abundance', vars = names(peptides))]))
   {
     stop('Group Abundance columns do not match between proteins and peptides')
   }
