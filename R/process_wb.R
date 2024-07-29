@@ -69,6 +69,8 @@ process_wb <- function(proteins, peptides, config,
   for(i in 1:min(n_proteins, dim(proteins)[1]))
   {
     proteins[i,] |>
+      
+      mutate(Protein = as.character(Protein)) |>
 
       mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA
 
