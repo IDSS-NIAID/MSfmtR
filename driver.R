@@ -26,6 +26,7 @@
 ### Filtering parameters
 #' @param uloq Upper limit of quantification. Proteins with abundances greater than this will be removed from the analysis. Default is `Inf`.
 #' @param lloq Lower limit of quantification. Proteins with abundances less than this will be removed from the analysis. Default is `0`.
+#' @param max_ratio The maximum ratio to use. When calculating ratios, any ratio greater than this (or smaller than the reciprocal) will be set to this value (or the reciprocal). Default is `100`.
 #' @param cont_fasta The name of the contaminant fasta file to use (assumed to be in `fasta_dir`). Default
 #'  is the Universal Contaminant file that comes with this package.
 
