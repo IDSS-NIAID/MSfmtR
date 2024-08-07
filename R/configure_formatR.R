@@ -55,7 +55,7 @@ configure_formatR <- function(config_file = NULL, args = NULL)
   if(is.null(config$uloq))
     config$uloq <- Inf
   if(is.null(config$lloq))
-    config$lloq <- 1
+    config$lloq <- 0
   if(is.null(config$cont_fasta))
   {
     config$cont_fasta <- 'inst/extdata/Universal Contaminants.fasta'
