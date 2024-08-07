@@ -64,6 +64,8 @@ configure_formatR <- function(config_file = NULL, args = NULL)
     warning('cont_fasta does not exist, using default: ', config$cont_fasta)
     config$cont_fasta <- 'inst/extdata/Universal Contaminants.fasta'
   }
+  if(is.null(config$max_ratio))
+    config$max_ratio <- 100
 
 
   ## Metadata parameters

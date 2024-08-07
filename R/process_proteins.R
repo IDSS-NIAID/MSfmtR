@@ -163,9 +163,16 @@ process_proteins <- function(data, peptides, config,
     {
       coverage <- {aligned != '-'} %>%
         colSums()
-      
+
       proteins$`coverage%`[i] <- sum(coverage > 1) / length(coverage) * 100
     }
+  }
+
+  # Cut off ratios at config$max_ratio
+  for(i in names(proteins)[starts_with('log2FC', vars = names(proteins))])
+  {
+    proteins[[i]][proteins[[i]] >  log2(config$max_ratio)] <-  log2(config$max_ratio)
+    proteins[[i]][proteins[[i]] < -log2(config$max_ratio)] <- -log2(config$max_ratio)
   }
 
   # checkpoint
