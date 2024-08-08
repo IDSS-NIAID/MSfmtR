@@ -12,6 +12,5 @@ data/
 output/
 
 *.log
-*.yml
 *.sbatch
 *.out
