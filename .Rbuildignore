@@ -1,0 +1,13 @@
+^LICENSE\.md$
+^README\.md$
+README.qmd
+
+^.*\.Rproj$
+^\.Rproj\.user$
+
+^.*\.yml$
+driver.R
+
+^data$
+^docs$
+^output$

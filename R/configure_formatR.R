@@ -1,4 +1,12 @@
-
+#' configure_formatR
+#' Default configuration for MSfmtR
+#'
+#' @param config_file path to a yaml file with configuration settings
+#' @param args list of arguments to override defaults
+#'
+#' @return list of configuration settings
+#' @export
+#' @importFrom stringr fixed str_replace
 configure_formatR <- function(config_file = NULL, args = NULL)
 {
   if(!is.null(args$config_file))

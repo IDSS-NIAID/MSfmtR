@@ -1,6 +1,18 @@
-
+#' check_progress
+#' Check progress of previous runs and determine what needs to be done
+#'
+#' @param config list of configuration options
+#'
+#' @return data.frame with progress information
+#' @export
+#' @importFrom dplyr mutate
+#' @importFrom purrr map_df map_lgl
 check_progress <- function(config)
 {
+  # for those pesky no visible binding warnings
+  if(FALSE)
+    conf_name <- generate <- size <- NULL
+
   # check that output_dir exists
   if(!dir.exists(config$output_dir))
     dir.create(config$output_dir)

@@ -1,7 +1,27 @@
-
+#' process_raw
+#' Process raw data into MSstats format
+#'
+#' @param config list of configuration parameters
+#' @param stage character path to checkpoint file
+#' @param save_intermediate logical save intermediate data
+#'
+#' @details This function processes raw data into MSstats format. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file. This also has the side effect of changing/updating `config` in the calling environment.
+#' @return data frame of processed raw data
+#' @export
+#' @importFrom Biostrings readAAStringSet
+#' @importFrom dplyr filter select distinct pull
+#' @importFrom MSstats dataProcess
+#' @importFrom MSstatsConvert SpectronauttoMSstatsFormat
+#' @importFrom purrr map_chr
+#' @importFrom readr read_delim
+#' @importFrom stringr fixed str_split
+#' @importFrom utils combn
 process_raw <- function(config, stage = file.path(config$output_dir, config$processed_checkpoint),
                         save_intermediate = TRUE)
 {
+  # for those pesky no visible binding warnings
+  if(FALSE)
+    PG.ProteinAccessions <- R.Condition <- NULL
 
   # contaminants
   contam <- Biostrings::readAAStringSet(file.path(config$fasta_dir, config$cont_fasta))@ranges@NAMES |>
