@@ -24,7 +24,7 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
     PG.ProteinAccessions <- R.Condition <- NULL
 
   # contaminants
-  contam <- Biostrings::readAAStringSet(file.path(config$fasta_dir, config$cont_fasta))@ranges@NAMES |>
+  contam <- readAAStringSet(file.path(config$fasta_dir, config$cont_fasta))@ranges@NAMES |>
     str_split(fixed('|')) |>
     map_chr(~ .x[2])
 
@@ -59,16 +59,16 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
 
   # process raw data
   data <- raw |>
-    
+
     # convert raw data into MSstats format
     SpectronauttoMSstatsFormat(intensity = 'NormalizedPeakArea',
                                use_log_file = FALSE)
-    
+
   # remove out-of-spec peptides (MSstats assumes one row for every run for each feature, even if the intensity value is missing
   #                              therefore, use mutate and convert to NA instead of filter...actually mutate doesn't work)
-  data$Intensity[data$Intensity < config$lloq | 
+  data$Intensity[data$Intensity < config$lloq |
                  data$Intensity > config$uloq] <- NA
-    
+
   # peptide-level data (see documentation of `MSstats::dataProcess` at https://www.bioconductor.org/packages/devel/bioc/vignettes/MSstats/inst/doc/MSstats.html)
   data <- dataProcess(data,
                       normalization = FALSE,
@@ -77,7 +77,7 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
   # save data
   if(FALSE)
     save(raw, file = file.path(config$output_dir, 'raw.RData'))
-  
+
   # checkpoint
   if(save_intermediate)
   {

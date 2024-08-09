@@ -47,7 +47,7 @@ process_proteins <- function(data, peptides, config,
   if(length(config$fasta_meta) > 0)
   {
     # read fasta
-    fasta <- map(config$fasta_meta, ~ Biostrings::readAAStringSet(file.path(config$fasta_dir, .x))) |>
+    fasta <- map(config$fasta_meta, ~ readAAStringSet(file.path(config$fasta_dir, .x))) |>
       AAStringSetList() |>
       unlist()
 
@@ -89,8 +89,8 @@ process_proteins <- function(data, peptides, config,
 
     meta <- UniProt.ws::select(UniProt.ws(taxId=config$taxId),
                                proteinIDs,
-                               c('organism_name', 'protein_name', 'sequence')) %>%
-      dplyr::select(Entry, Organism, Protein.names, Sequence) %>%
+                               c('organism_name', 'protein_name', 'sequence')) |>
+      dplyr::select(Entry, Organism, Protein.names, Sequence) |>
       dplyr::rename(Protein = Entry,
                     Description = Protein.names)
   }
@@ -178,17 +178,17 @@ process_proteins <- function(data, peptides, config,
     if(is.na(proteins$Sequence[i]))
       next
 
-    seqs <- c(Biostrings::AAStringSet(proteins$Sequence[i]),
-              Biostrings::AAStringSet(filter(peptides, PROTEIN == as.character(proteins$Protein[i]))$PEPTIDE %>% unique()))
+    seqs <- c(AAStringSet(proteins$Sequence[i]),
+              AAStringSet(filter(peptides, PROTEIN == as.character(proteins$Protein[i]))$PEPTIDE |> unique()))
 
     # align sequences and convert to matrix
-    aligned <- try({muscle::muscle(seqs) %>%
+    aligned <- try({muscle(seqs) |>
                     as.matrix()})
 
     # calculate coverage (proportion of non-dashes in the alignment)
     if(! 'try-error' %in% class(aligned))
     {
-      coverage <- {aligned != '-'} %>%
+      coverage <- {aligned != '-'} |>
         colSums()
 
       proteins$`coverage%`[i] <- sum(coverage > 1) / length(coverage) * 100

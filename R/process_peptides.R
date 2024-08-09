@@ -23,12 +23,12 @@ process_peptides <- function(data, config,
     PROTEIN <- FEATURE <- GROUP <- INTENSITY <- ABUNDANCE <- id <- cv <- originalRUN <- SUBJECT <- PEPTIDE <- TRANSITION <- Modification <- NULL
 
   # calculate peptide stats
-  peptides_long <- data$FeatureLevelData %>%
+  peptides_long <- data$FeatureLevelData |>
 
-    group_by(PROTEIN, FEATURE, GROUP) %>%
+    group_by(PROTEIN, FEATURE, GROUP) |>
 
     summarize(INTENSITY = median(INTENSITY, na.rm = TRUE),
-              cv = sd(ABUNDANCE, na.rm = TRUE) / mean(ABUNDANCE, na.rm = TRUE) * 100) %>%
+              cv = sd(ABUNDANCE, na.rm = TRUE) / mean(ABUNDANCE, na.rm = TRUE) * 100) |>
 
     ungroup()
 
@@ -59,50 +59,48 @@ process_peptides <- function(data, config,
            # split modifications out into a different column
            Modification = map_chr(FEATURE, ~
                                     {
-                                      openMod <- str_locate_all(.x, fixed('[')) %>%
-                                        unlist() %>%
-                                        as.vector() %>%
+                                      openMod <- str_locate_all(.x, fixed('[')) |>
+                                        unlist() |>
+                                        as.vector() |>
                                         unique()
-                                      closeMod <- str_locate_all(.x, fixed(']')) %>%
-                                        unlist() %>%
-                                        as.vector() %>%
+                                      closeMod <- str_locate_all(.x, fixed(']')) |>
+                                        unlist() |>
+                                        as.vector() |>
                                         unique()
 
                                       if(length(openMod) > 0)
                                       {
-                                        mod <- substr(.x, openMod[1], closeMod[1]) %>%
+                                        mod <- substr(.x, openMod[1], closeMod[1]) |>
                                           paste(collapse = ';')
                                       }else{
                                         mod <- ''
                                       }
 
                                       return(mod)
-                                    })) %>%
+                                    })) |>
 
 
-    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, Modification, id, INTENSITY) %>%
+    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, Modification, id, INTENSITY) |>
 
     arrange(id) |> # sort by id - this keeps column names in the same order as in `proteins`
 
     unique() |> # remove duplicates - these do appear rarely in the data
 
-    pivot_wider(names_from = id, values_from = INTENSITY) %>%
+    pivot_wider(names_from = id, values_from = INTENSITY) |>
 
     # merge stats into peptides
     left_join(peptides, by = c('PROTEIN', 'FEATURE'))
 
-  if(FALSE)
-  {
-    # some diagnostic plots for looking at peptides_long
-    library(ggplot2)
-    library(cowplot)
-    theme_set(theme_cowplot())
 
-    peptides_long %>%
-      ggplot(aes(x = cv, y = INTENSITY)) +
-      geom_point() +
-      facet_wrap(~GROUP)
-  }
+  # # some diagnostic plots for looking at peptides_long
+  # library(ggplot2)
+  # library(cowplot)
+  # theme_set(theme_cowplot())
+  #
+  # peptides_long |>
+  #   ggplot(aes(x = cv, y = INTENSITY)) +
+  #   geom_point() +
+  #   facet_wrap(~GROUP)
 
   # checkpoint
   if(save_intermediate)

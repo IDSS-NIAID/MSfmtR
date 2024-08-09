@@ -111,7 +111,7 @@ configure_formatR <- function(config_file = NULL, args = NULL)
     {
       config$checkpoints <- c('xlsx', 'sql', 'processed', 'protein', 'peptide', 'wb')
     }else{
-      config$checkpoints <- str_split(config$checkpoints, ',') %>%
+      config$checkpoints <- str_split(config$checkpoints, ',') |>
         unlist()
     }
   }else{

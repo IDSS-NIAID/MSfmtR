@@ -45,7 +45,7 @@ process_wb <- function(proteins, peptides, config,
 
   # fix a bug in 63456e without rerunning the whole thing
   names(proteins) <- str_replace_all(names(proteins), '  ', ' ')
-  
+
   # make sure columns line up
   if(any(names(proteins)[starts_with('Abundance', vars = names(proteins))] !=
          names(peptides)[starts_with('Abundance', vars = names(peptides))]))
@@ -90,7 +90,7 @@ process_wb <- function(proteins, peptides, config,
   for(i in 1:min(n_proteins, dim(proteins)[1]))
   {
     proteins[i,] |>
-      
+
       mutate(Protein = as.character(Protein)) |>
 
       mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA
@@ -112,7 +112,7 @@ process_wb <- function(proteins, peptides, config,
     # add peptides
     tmp <- filter(peptides, PROTEIN == as.character(proteins$Protein[i]))
 
-    tmp %>%
+    tmp |>
       dplyr::select(-PROTEIN) |>
 
       mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA
