@@ -64,35 +64,18 @@
 #'
 #' @examples
 #' Rscript driver.R --args input_dir=data output_dir=output
+#' Rscript driver.R --args config_file=config.yml
 
 
-##################
-# Load libraries #
-##################
+###############
+# Load MSfmtR #
+###############
 
-library(MSstats)
-library(MSstatsConvert)
+if(FALSE)
+  devtools::install_github('IDSS-NIAID/MSfmtR',
+                           ref = "package")
 
-library(dplyr)
-library(tidyr)
-library(purrr)
-library(readr)
-library(stringr)
-
-library(openxlsx)
-library(RSQLite)
-
-library(Biostrings)
-library(muscle)
-library(UniProt.ws)
-library(Peptides)
-
-source('R/configure_formatR.R')
-source('R/check_progress.R')
-source('R/process_raw.R')
-source('R/process_peptides.R')
-source('R/process_proteins.R')
-source('R/process_wb.R')
+library(MSfmtR)
 
 ###############
 # Load config #
