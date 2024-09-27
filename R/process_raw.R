@@ -13,7 +13,7 @@
 #' @return data frame of processed raw data
 #' @export
 #' @importFrom Biostrings readAAStringSet
-#' @importFrom dplyr filter select distinct pull
+#' @importFrom dplyr filter select distinct pull n
 #' @importFrom MSstats dataProcess
 #' @importFrom MSstatsConvert SpectronauttoMSstatsFormat
 #' @importFrom purrr map_chr
@@ -25,7 +25,12 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
 {
   # for those pesky no visible binding warnings
   if(FALSE)
-    PG.ProteinAccessions <- R.Condition <- NULL
+    ABUNDANCE <- censored <- EG.PrecursorId <- FEATURE <- FRACTION <- FrgIon.uid <- F.Charge <-
+      F.FrgIon <- F.FrgLossType <- F.NormalizedPeakArea <- F.NormalizedPeakHeight <- GROUP <-
+      INTENSITY <- originalRUN <- LABEL <- LogIntensities <- MissingPercentage <- more50missing <-
+      newABUNDANCE <- NumImputedFeature <- NumMeasuredFeature <- PEPTIDE <- PG.ProteinAccessions <-
+      PG.Quantity <- PROTEIN <- RUN <- R.Condition <- R.FileName <- R.Replicate <- SUBJECT <-
+      TotalGroupMeasurements <- TRANSITION <- NULL
 
   # contaminants
   contam <- readAAStringSet(file.path(config$fasta_dir, config$cont_fasta))@ranges@NAMES |>

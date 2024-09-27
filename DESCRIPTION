@@ -1,6 +1,6 @@
 Package: MSfmtR
 Title: MSfmtR: An R package for formatting mass spectrometry data
-Version: 1.0
+Version: 0.4-1
 Authors@R: person("Randy", "Johnson", role = c("aut", "cre"), email = "randall.johnson@nih.gov")
 Description: MSfmtR is an R package for formatting mass spectrometry data. It provides functions for importing files into MSstats and creating output suitable for use in the ProtResDash package. The package is designed to be flexible and extensible, allowing users to easily add new file formats and data processing methods.
 License: MIT + file LICENSE
@@ -23,4 +23,4 @@ Imports:
 URL: https://github.com/IDSS-NIAID/MSfmtR
 BugReports: https://github.com/IDSS-NIAID/MSfmtR/issues
 Encoding: UTF-8
-RoxygenNote: 7.3.1
+RoxygenNote: 7.3.2
