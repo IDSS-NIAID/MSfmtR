@@ -48,12 +48,19 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
   # format ratios
   if(is.null(config$ratios))
   {
-    config$ratios <- raw |>
-      dplyr::select(R.Condition) |>
-      distinct() |>
-      pull() |>
-      combn(2, simplify = TRUE) |>
-      t()
+    if(!is.null(config$groups))
+    {
+      config$ratios <- config$groups |>
+        combn(2, simplify = TRUE) |>
+        t()
+    }else{
+      config$ratios <- raw |>
+        dplyr::select(R.Condition) |>
+        distinct() |>
+        pull() |>
+        combn(2, simplify = TRUE) |>
+        t()
+    }
   }else{
     tmp <- config$ratios |>
       str_split('/')

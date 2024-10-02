@@ -59,6 +59,13 @@ configure_formatR <- function(config_file = NULL, args = NULL)
     config$sheet <- str_replace(config$out_xlsx, fixed('.xlsx'), '')
 
 
+  ## Sample parameters
+  if(is.null(config$smp_grp_rep))
+  {
+    config$smp_grp_rep <- 'R.FileName'
+  }
+
+
   ## Filtering parameters
   if(is.null(config$uloq))
     config$uloq <- Inf

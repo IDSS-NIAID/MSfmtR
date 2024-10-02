@@ -4,12 +4,15 @@
 .Rhistory
 .RData
 .Ruserdata
-*.RProj
+*.Rproj
 *.RData
 
 data
 data/
 output/
+
+*.tsv
+*.fasta
 
 *.log
 *.sbatch
