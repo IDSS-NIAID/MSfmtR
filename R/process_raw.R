@@ -110,10 +110,10 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
                factor(),
              FEATURE = paste(PEPTIDE, TRANSITION, sep = '_') |>
                factor(),
-             LABEL = factor('L'),                                                               ##### don't know what this is
+             LABEL = factor('L'),                                                               ##### for label-free data, this is always 'L' - need to update this when we have a good example TMT dataset
              GROUP = factor(R.Condition),
              SUBJECT = factor(R.Replicate),
-             FRACTION = as.integer(1),                                                          ##### don't know what this is
+             FRACTION = as.integer(1),                                                          ##### For fractionation - need to update this when we get a good example dataset
              originalRUN = factor(R.FileName, levels = unique(R.FileName[order(R.Condition)])), # this is the ordering MSstats uses
              RUN = as.numeric(originalRUN) |> as.factor(),
              censored = FALSE,

@@ -9,6 +9,7 @@ Imports:
   Biostrings,
   config,
   dplyr,
+  lme4,
   MSstats,
   MSstatsConvert,
   muscle,

@@ -8,17 +8,17 @@
 #' @param save_intermediate logical save intermediate data
 #'
 #' @details This function processes MSstats formatted data and returns peptides ready for ProtResDash. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
-#' 
+#'
 #' If `merge_method` is 'median' (default), the function will use the median within `data$FeatureLevelData$GROUP` (or `config$groups` when defined) for group-level peptide abundance statistics.
-#' 
+#'
 #' If `merge_method` is 'mean', the function will use the mean within `data$FratureLevelData$GROUP` (or `config$groups` when defined) for group-level peptide abundance statistics.
-#' 
+#'
 #' If `merge_method` is 'lmer', the function will use a linear mixed effects model to estimate group-level peptide abundance statistics within `data$FratureLevelData$GROUP` (or `config$groups` when defined) and using random effects for `config$samples` (e.g. for technical replicates).
-#' 
+#'
 #' @return data frame of processed peptide data
 #' @export
 #' @importFrom dplyr group_by summarize ungroup arrange left_join mutate
-#' @importFrom purrr map_df map_lgl
+#' @importFrom purrr map_dfr map_lgl set_names
 #' @importFrom lme4 lmer fixef
 #' @importFrom stats median sd vcov
 #' @importFrom stringr fixed str_replace_all
@@ -29,22 +29,23 @@ process_peptides <- function(data, config, merge_method = 'median',
 {
   # for those pesky no visible binding warnings
   if(FALSE)
-    PROTEIN <- FEATURE <- GROUP <- INTENSITY <- ABUNDANCE <- id <- cv <- originalRUN <- SUBJECT <- PEPTIDE <- TRANSITION <- Modification <- NULL
+    PROTEIN <- FEATURE <- GROUP <- INTENSITY <- ABUNDANCE <- id <- cv <- originalRUN <- SUBJECT <-
+      PEPTIDE <- TRANSITION <- Modification <- group <- model <- NULL
 
   # add sample/group information if provided
   if(!is.null(config$samples))
   {
     # map originalRUN to config$samples
     sample_from <- unique(data$FeatureLevelData$originalRUN) |> as.character()
-    
+
     # create a mapping from originalRUN to sampleID
     sample_map_dfr <- map_dfr(config$samples, ~ data.frame(sample_from = grep(.x, sample_from, value = TRUE),
                                                            sample_to   = .x))
-    
+
     # convert to named vector
-    sample_map <- sample_map_dfr$sample_to |> 
+    sample_map <- sample_map_dfr$sample_to |>
       set_names(sample_map_dfr$sample_from)
-    
+
     # add sample information to data
     data$FeatureLevelData <- data$FeatureLevelData |>
       mutate(sample = sample_map[as.character(originalRUN)])
@@ -52,67 +53,67 @@ process_peptides <- function(data, config, merge_method = 'median',
     if(merge_method == 'lmer')
       stop('merge_method is "lmer" but config$samples is not defined')
   }
-  
+
   if(!is.null(config$groups))
   {
     # map originalRUN to config$groups
     group_from <- unique(data$FeatureLevelData$originalRUN) |> as.character()
-    
+
     # create a mapping from originalRUN to groupID
     group_map_dfr <- map_dfr(config$groups, ~ data.frame(group_from = grep(.x, group_from, value = TRUE),
                                                          group_to   = .x))
-    
+
     # convert to named vector
-    group_map <- group_map_dfr$group_to |> 
+    group_map <- group_map_dfr$group_to |>
       set_names(group_map_dfr$group_from)
-    
+
     data$FeatureLevelData <- data$FeatureLevelData |>
       mutate(group = group_map[as.character(originalRUN)])
   }else{
     data$FeatureLevelData <- data$FeatureLevelData |>
       mutate(group = GROUP)
   }
-  
+
   # calculate group abundance statistics for peptides
   if(merge_method == 'median'){
-    
+
     peptides_long <- data$FeatureLevelData |>
-      
+
       group_by(PROTEIN, FEATURE, group) |>
-      
+
       summarize(INTENSITY = median(INTENSITY, na.rm = TRUE),
                 cv = sd(ABUNDANCE, na.rm = TRUE) / mean(ABUNDANCE, na.rm = TRUE) * 100) |>
-      
+
       ungroup()
-    
+
   }else if(merge_method == 'mean'){
-    
+
     peptides_long <- data$FeatureLevelData |>
-      
+
       group_by(PROTEIN, FEATURE, group) |>
-      
+
       summarize(INTENSITY = log(INTENSITY) |> mean(na.rm = TRUE) |> exp(),
                 cv = sd(ABUNDANCE, na.rm = TRUE) / mean(ABUNDANCE, na.rm = TRUE) * 100) |>
-      
+
       ungroup()
-    
+
   }else if(merge_method == 'lmer'){
 
     peptides_long <- data$FeatureLevelData |>
-      
+
       group_by(PROTEIN, FEATURE, group) |>
-      
+
       summarize(model = lmer(log(INTENSITY) ~ 1 + (1|sample)),
                 INTENSITY = fixef(model) |> exp(),
                 cv = sqrt(vcov(model)) / fixef(model) * 100 |> as.vector()) |>
       select(-model) |>
-      
+
       ungroup()
 
   }else{
     stop('Invalid merge_method')
   }
-  
+
 
   # summary data
   peptides <- peptides_long |>
