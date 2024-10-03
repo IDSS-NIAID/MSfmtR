@@ -8,6 +8,7 @@ Process peptides from raw data}
 process_peptides(
   data,
   config,
+  merge_method = "median",
   stage = file.path(config$output_dir, config$peptide_checkpoint),
   save_intermediate = TRUE
 )
@@ -16,6 +17,8 @@ process_peptides(
 \item{data}{MSstats formatted data}
 
 \item{config}{list of configuration parameters}
+
+\item{merge_method}{character value defining the method to use for merging peptide data. Valid options are 'median', 'mean', 'lmer'.}
 
 \item{stage}{character path to checkpoint file}
 
@@ -30,4 +33,10 @@ Process peptides from raw data
 }
 \details{
 This function processes MSstats formatted data and returns peptides ready for ProtResDash. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
+
+If `merge_method` is 'median' (default), the function will use the median within `data$FeatureLevelData$GROUP` (or `config$groups` when defined) for group-level peptide abundance statistics.
+
+If `merge_method` is 'mean', the function will use the mean within `data$FratureLevelData$GROUP` (or `config$groups` when defined) for group-level peptide abundance statistics.
+
+If `merge_method` is 'lmer', the function will use a linear mixed effects model to estimate group-level peptide abundance statistics within `data$FratureLevelData$GROUP` (or `config$groups` when defined) and using random effects for `config$samples` (e.g. for technical replicates).
 }

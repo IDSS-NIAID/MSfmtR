@@ -61,9 +61,10 @@ configure_formatR <- function(config_file = NULL, args = NULL)
 
   ## Sample parameters
   if(is.null(config$smp_grp_rep))
-  {
     config$smp_grp_rep <- 'R.FileName'
-  }
+
+  if(is.null(config$merge_method))
+    config$merge_method <- 'median'
 
 
   ## Filtering parameters
