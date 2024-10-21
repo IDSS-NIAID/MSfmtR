@@ -35,10 +35,41 @@ process_proteins <- function(data, peptides, config,
                       dimnames = list(paste(config$ratios[,1], '/', config$ratios[,2]),
                                       levels(data$FeatureLevelData$GROUP)))
 
+  # if config$groups is defined, we will need this mapping between Group and orginalRUN
+  if(!is.null(config$groups))
+  {
+    group_mapping <- data$FeatureLevelData |>
+      dplyr::select(GROUP, originalRUN) |>
+      distinct()
+  }
+  
+  
   for(i in 1:nrow(config$ratios))
   {
-    contrasts[i,c(config$ratios[i,1],
-                  config$ratios[i,2])] <- c(1,-1)
+    if(!config$ratios[i,1] %in% levels(data$FeatureLevelData$GROUP))
+    {
+      num <- filter(group_mapping, grepl(config$ratios[i,1], originalRUN)) |>
+        dplyr::select(GROUP) |>
+        distinct() |>
+        unlist() |>
+        as.character()
+    }else{
+      num <- config$ratios[i,1]
+    }
+    
+    if(!config$ratios[i,2] %in% levels(data$FeatureLevelData$GROUP))
+    {
+      den <- filter(group_mapping, grepl(config$ratios[i,2], originalRUN)) |>
+        dplyr::select(GROUP) |>
+        distinct() |>
+        unlist() |>
+        as.character()
+    }else{
+      den <- config$ratios[i,2]
+    }
+      
+    contrasts[i, num] <-  1
+    contrasts[i, den] <- -1
   }
 
   ### Metadata to add ###
@@ -108,23 +139,65 @@ process_proteins <- function(data, peptides, config,
     pivot_wider(names_from = Label, values_from = c(log2FC, pvalue, adj.pvalue))
 
   ### Extract protein data ###
+  
+  # add sample/group information if provided
+  data$ProteinLevelData <- map_samples(data$ProteinLevelData, config) |>
+    
+    map_groups(config)
+  
+  # calculate group abundance statistics for peptides
   tmp <- data$ProteinLevelData |>
-
-    mutate(id = paste0('Abundance: ', GROUP, ', ', originalRUN, ' (', SUBJECT, ')')) |>   # create a unique ID for each measurement
-
+    
+    mutate(id = paste0('Abundance: ', GROUP, ', ', originalRUN, ' (', SUBJECT, ')'))   # create a unique ID for each measurement
+    
+  if(config$merge_method == 'median')
+  {
     # add summary (by median) of log intensities for each protein
-    bind_rows({data$ProteinLevelData |>
-        group_by(Protein, GROUP) |>
-        summarize(LogIntensities = median(LogIntensities, na.rm = TRUE)) |>
-        ungroup() |>
-        dplyr::rename(id = GROUP) |>
-        mutate(id = paste0('Group Abundance: ', id))}) |>
+    tmp_summ <- data$ProteinLevelData |>
+      group_by(Protein, group) |>
+      summarize(LogIntensities = median(LogIntensities, na.rm = TRUE)) |>
+      ungroup() |>
+      dplyr::rename(id = group) |>
+      mutate(id = paste0('Group Abundance: ', id))
+  }else if(config$merge_method == 'mean'){
+    # add summary (by mean) of log intensities for each protein
+    tmp_summ <- data$ProteinLevelData |>
+      group_by(Protein, group) |>
+      summarize(LogIntensities = mean(LogIntensities, na.rm = TRUE)) |>
+      ungroup() |>
+      dplyr::rename(id = group) |>
+      mutate(id = paste0('Group Abundance: ', id))
+  }else if(config$merge_method == 'lmer'){
+    # add summary (by lmer) of log intensities for each protein
+    tmp_summ <- data$ProteinLevelData |>
+      filter(!is.na(LogIntensities)) |>
+      
+      group_by(Protein, group) |>
+      
+      summarize(models = list(try(lmer(LogIntensities ~ 1 + (1 | sample),
+                                       control = lmerControl(check.conv.singular = .makeCC(action = "ignore",  tol = 1e-4))))), # we use lmerControl to silence singular fit warnings. We expect to see a few of these when there are few technical replicates (e.g. if there are 3 replicates). Since we are only concerned with the fixed effects estimates, we should be fine even with a singular fit.
+                LogIntensities = map_dbl(models, ~ 
+                                           {
+                                             if(class(.x) == 'try-error')
+                                               return(as.numeric(NA))
+                                             fixef(.x)}
+                                         )) |>
+      dplyr::select(-models) |>
+      ungroup() |>
+      dplyr::rename(id = group) |>
+      mutate(id = paste0('Group Abundance: ', id))
+  }else{
+    stop('Invalid merge_method')
+  }
 
+
+  tmp <- bind_rows(tmp, tmp_summ) |>
+    
     mutate(Intensity = 10^LogIntensities,                                  # report linear scale
            primary_id = str_split(Protein, fixed(';')) |>                  # pick a primary protein ID for now - still need to deal with protein groups
              map_chr(~ .x[1])) |>
 
-    arrange(is.na(GROUP), id) |>                                           # sort by ID - this keeps column names in the same order as in `peptides`
+    arrange(is.na(group), id) |>                                           # sort by ID - this keeps column names in the same order as in `peptides`
 
     dplyr::select(-RUN, -LogIntensities, -originalRUN, -GROUP, -SUBJECT, -NumMeasuredFeature,
                   -MissingPercentage, -more50missing, -NumImputedFeature, -TotalGroupMeasurements) |>

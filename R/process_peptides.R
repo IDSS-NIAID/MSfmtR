@@ -33,46 +33,10 @@ process_peptides <- function(data, config, merge_method = 'median',
       PEPTIDE <- TRANSITION <- Modification <- group <- model <- NULL
 
   # add sample/group information if provided
-  if(!is.null(config$samples))
-  {
-    # map originalRUN to config$samples
-    sample_from <- unique(data$FeatureLevelData$originalRUN) |> as.character()
-
-    # create a mapping from originalRUN to sampleID
-    sample_map_dfr <- map_dfr(config$samples, ~ data.frame(sample_from = grep(.x, sample_from, value = TRUE),
-                                                           sample_to   = .x))
-
-    # convert to named vector
-    sample_map <- sample_map_dfr$sample_to |>
-      set_names(sample_map_dfr$sample_from)
-
-    # add sample information to data
-    data$FeatureLevelData <- data$FeatureLevelData |>
-      mutate(sample = sample_map[as.character(originalRUN)])
-  }else{
-    if(merge_method == 'lmer')
-      stop('merge_method is "lmer" but config$samples is not defined')
-  }
-
-  if(!is.null(config$groups))
-  {
-    # map originalRUN to config$groups
-    group_from <- unique(data$FeatureLevelData$originalRUN) |> as.character()
-
-    # create a mapping from originalRUN to groupID
-    group_map_dfr <- map_dfr(config$groups, ~ data.frame(group_from = grep(.x, group_from, value = TRUE),
-                                                         group_to   = .x))
-
-    # convert to named vector
-    group_map <- group_map_dfr$group_to |>
-      set_names(group_map_dfr$group_from)
-
-    data$FeatureLevelData <- data$FeatureLevelData |>
-      mutate(group = group_map[as.character(originalRUN)])
-  }else{
-    data$FeatureLevelData <- data$FeatureLevelData |>
-      mutate(group = GROUP)
-  }
+  data$FeatureLevelData <- map_samples(data$FeatureLevelData, config) |>
+    
+    map_groups(config)
+  
 
   # calculate group abundance statistics for peptides
   if(merge_method == 'median'){
@@ -98,18 +62,25 @@ process_peptides <- function(data, config, merge_method = 'median',
       ungroup()
 
   }else if(merge_method == 'lmer'){
-
     peptides_long <- data$FeatureLevelData |>
 
       group_by(PROTEIN, FEATURE, group) |>
 
-      summarize(model = lmer(log(INTENSITY) ~ 1 + (1|sample)),
-                INTENSITY = fixef(model) |> exp(),
-                cv = sqrt(vcov(model)) / fixef(model) * 100 |> as.vector()) |>
-      select(-model) |>
+      summarize(models = list(lmer(log(INTENSITY) ~ 1 + (1 | sample),
+                                   control = lmerControl(check.conv.singular = .makeCC(action = "ignore",  tol = 1e-4)))), # we use lmerControl to silence singular fit warnings. We expect to see a few of these when there are few technical replicates (e.g. if there are 3 replicates). Since we are only concerned with the fixed effects estimates, we should be fine even with a singular fit.
+                INTENSITY = map_dbl(models, ~ fixef(.x) |> exp()),
+                cv = map_dbl(models, ~ 
+                             {
+                               retval <- try((sqrt(vcov(.x)) / fixef(.x) * 100)[1,1])
+                               if(class(retval) == 'try-error')
+                                 return(as.double(NA))
+                               
+                               return(as.double(retval))
+                             })
+                ) |>
+      select(-models) |>
 
       ungroup()
-
   }else{
     stop('Invalid merge_method')
   }
@@ -117,7 +88,7 @@ process_peptides <- function(data, config, merge_method = 'median',
 
   # summary data
   peptides <- peptides_long |>
-    dplyr::rename(id = GROUP) |>
+    dplyr::rename(id = group) |>
 
     arrange(id) |> # sort by id - this keeps column names in the same order as in `proteins`
 

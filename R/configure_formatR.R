@@ -99,6 +99,13 @@ configure_formatR <- function(config_file = NULL, args = NULL)
 
   if(is.null(config$normMeasure))
     config$normMeasure <- 'NormalizedPeakArea'
+  
+  if(is.null(config$preprocess))
+  {
+    config$preprocess <- FALSE
+  }else{
+    config$preprocess <- as.logical(config$preprocess)
+  }
 
 
   ## Style parameters
