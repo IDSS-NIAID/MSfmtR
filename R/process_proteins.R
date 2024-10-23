@@ -199,8 +199,7 @@ process_proteins <- function(data, peptides, config,
 
     arrange(is.na(group), id) |>                                           # sort by ID - this keeps column names in the same order as in `peptides`
 
-    dplyr::select(-RUN, -LogIntensities, -originalRUN, -GROUP, -SUBJECT, -NumMeasuredFeature,
-                  -MissingPercentage, -more50missing, -NumImputedFeature, -TotalGroupMeasurements) |>
+    dplyr::select(Protein, primary_id, id, Intensity) |>
 
     pivot_wider(names_from = id, values_from = Intensity) |>
 
