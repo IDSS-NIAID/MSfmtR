@@ -28,7 +28,7 @@ map_samples <- function(data, config)
     return(mutate(data, sample = sample_map[as.character(originalRUN)]))
   }
   
-  if(merge_method == 'lmer')
+  if(config$merge_method == 'lmer')
       stop('merge_method is "lmer" but config$samples is not defined')
   
     
