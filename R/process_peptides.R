@@ -19,7 +19,7 @@
 #' @export
 #' @importFrom dplyr group_by summarize ungroup arrange left_join mutate
 #' @importFrom purrr map_dfr map_lgl set_names
-#' @importFrom lme4 lmer fixef
+#' @importFrom lme4 fixef lmer lmerControl .makeCC
 #' @importFrom stats median sd vcov
 #' @importFrom stringr fixed str_replace_all
 #' @importFrom tidyr pivot_wider
@@ -30,13 +30,13 @@ process_peptides <- function(data, config, merge_method = 'median',
   # for those pesky no visible binding warnings
   if(FALSE)
     PROTEIN <- FEATURE <- GROUP <- INTENSITY <- ABUNDANCE <- id <- cv <- originalRUN <- SUBJECT <-
-      PEPTIDE <- TRANSITION <- Modification <- group <- model <- NULL
+      PEPTIDE <- TRANSITION <- Modification <- group <- model <- models <- group <- NULL
 
   # add sample/group information if provided
   data$FeatureLevelData <- map_samples(data$FeatureLevelData, config) |>
-    
+
     map_groups(config)
-  
+
 
   # calculate group abundance statistics for peptides
   if(merge_method == 'median'){
@@ -69,12 +69,12 @@ process_peptides <- function(data, config, merge_method = 'median',
       summarize(models = list(lmer(log(INTENSITY) ~ 1 + (1 | sample),
                                    control = lmerControl(check.conv.singular = .makeCC(action = "ignore",  tol = 1e-4)))), # we use lmerControl to silence singular fit warnings. We expect to see a few of these when there are few technical replicates (e.g. if there are 3 replicates). Since we are only concerned with the fixed effects estimates, we should be fine even with a singular fit.
                 INTENSITY = map_dbl(models, ~ fixef(.x) |> exp()),
-                cv = map_dbl(models, ~ 
+                cv = map_dbl(models, ~
                              {
                                retval <- try((sqrt(vcov(.x)) / fixef(.x) * 100)[1,1])
-                               if(class(retval) == 'try-error')
+                               if('try-error' %in% class(retval))
                                  return(as.double(NA))
-                               
+
                                return(as.double(retval))
                              })
                 ) |>

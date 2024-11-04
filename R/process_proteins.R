@@ -13,6 +13,7 @@
 #' @importFrom Biostrings AAStringSet readAAStringSet AAStringSetList
 #' @importFrom dplyr group_by summarize ungroup arrange left_join mutate tibble bind_rows starts_with
 #' @importFrom MSstats groupComparison
+#' @importFrom lme4 fixef lmer lmerControl .makeCC
 #' @importFrom muscle muscle
 #' @importFrom purrr map map2 map_chr map_dbl map_int map_lgl
 #' @importFrom stats median
@@ -28,7 +29,7 @@ process_proteins <- function(data, peptides, config,
     Entry <- Organism <- Protein.names <- Sequence <- Protein <- Label <- log2FC <- pvalue <- adj.pvalue <-
       GROUP <- originalRUN <- SUBJECT <- LogIntensities <- id <- run <- NumMeasuredFeature <- MissingPercentage <-
       more50missing <- NumImputedFeature <- TotalGroupMeasurements <- Intensity <- Description <-
-      PROTEIN <- Modification <- RUN <- NULL
+      PROTEIN <- Modification <- RUN <- group <- models <- primary_id <- NULL
 
   # contrasts
   contrasts <- matrix(0, nrow = nrow(config$ratios), ncol = length(levels(data$FeatureLevelData$GROUP)),
@@ -42,8 +43,8 @@ process_proteins <- function(data, peptides, config,
       dplyr::select(GROUP, originalRUN) |>
       distinct()
   }
-  
-  
+
+
   for(i in 1:nrow(config$ratios))
   {
     if(!config$ratios[i,1] %in% levels(data$FeatureLevelData$GROUP))
@@ -56,7 +57,7 @@ process_proteins <- function(data, peptides, config,
     }else{
       num <- config$ratios[i,1]
     }
-    
+
     if(!config$ratios[i,2] %in% levels(data$FeatureLevelData$GROUP))
     {
       den <- filter(group_mapping, grepl(config$ratios[i,2], originalRUN)) |>
@@ -67,7 +68,7 @@ process_proteins <- function(data, peptides, config,
     }else{
       den <- config$ratios[i,2]
     }
-      
+
     contrasts[i, num] <-  1
     contrasts[i, den] <- -1
   }
@@ -139,17 +140,17 @@ process_proteins <- function(data, peptides, config,
     pivot_wider(names_from = Label, values_from = c(log2FC, pvalue, adj.pvalue))
 
   ### Extract protein data ###
-  
+
   # add sample/group information if provided
   data$ProteinLevelData <- map_samples(data$ProteinLevelData, config) |>
-    
+
     map_groups(config)
-  
+
   # calculate group abundance statistics for peptides
   tmp <- data$ProteinLevelData |>
-    
+
     mutate(id = paste0('Abundance: ', GROUP, ', ', originalRUN, ' (', SUBJECT, ')'))   # create a unique ID for each measurement
-    
+
   if(config$merge_method == 'median')
   {
     # add summary (by median) of log intensities for each protein
@@ -171,14 +172,14 @@ process_proteins <- function(data, peptides, config,
     # add summary (by lmer) of log intensities for each protein
     tmp_summ <- data$ProteinLevelData |>
       filter(!is.na(LogIntensities)) |>
-      
+
       group_by(Protein, group) |>
-      
+
       summarize(models = list(try(lmer(LogIntensities ~ 1 + (1 | sample),
                                        control = lmerControl(check.conv.singular = .makeCC(action = "ignore",  tol = 1e-4))))), # we use lmerControl to silence singular fit warnings. We expect to see a few of these when there are few technical replicates (e.g. if there are 3 replicates). Since we are only concerned with the fixed effects estimates, we should be fine even with a singular fit.
-                LogIntensities = map_dbl(models, ~ 
+                LogIntensities = map_dbl(models, ~
                                            {
-                                             if(class(.x) == 'try-error')
+                                             if('try-error' %in% class(.x))
                                                return(as.numeric(NA))
                                              fixef(.x)}
                                          )) |>
@@ -192,7 +193,7 @@ process_proteins <- function(data, peptides, config,
 
 
   tmp <- bind_rows(tmp, tmp_summ) |>
-    
+
     mutate(Intensity = 10^LogIntensities,                                  # report linear scale
            primary_id = str_split(Protein, fixed(';')) |>                  # pick a primary protein ID for now - still need to deal with protein groups
              map_chr(~ .x[1])) |>
