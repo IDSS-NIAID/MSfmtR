@@ -133,6 +133,9 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
       dplyr::filter(INTENSITY > config$lloq, # remove out-of-spec peptides
                     INTENSITY < config$uloq)
 
+    if(dim(FeatureLevelData)[1] == 0)
+      stop("No features left after filtering")
+
 
     # protein-level data
     ProteinLevelData = FeatureLevelData |>
