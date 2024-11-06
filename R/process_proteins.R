@@ -14,7 +14,7 @@
 #' @importFrom dplyr group_by summarize ungroup arrange left_join mutate tibble bind_rows starts_with
 #' @importFrom MSstats groupComparison
 #' @importFrom lme4 fixef lmer lmerControl .makeCC
-#' @importFrom muscle muscle
+#' @importFrom msa msa
 #' @importFrom purrr map map2 map_chr map_dbl map_int map_lgl
 #' @importFrom stats median
 #' @importFrom stringr fixed str_locate_all str_split str_sub_all str_length str_replace
@@ -255,7 +255,7 @@ process_proteins <- function(data, peptides, config,
               AAStringSet(filter(peptides, PROTEIN == as.character(proteins$Protein[i]))$PEPTIDE |> unique()))
 
     # align sequences and convert to matrix
-    aligned <- try({muscle(seqs) |>
+    aligned <- try({msa(seqs) |>
                     as.matrix()})
 
     # calculate coverage (proportion of non-dashes in the alignment)
