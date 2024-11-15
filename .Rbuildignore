@@ -8,6 +8,6 @@ README.qmd
 ^.*\.yml$
 driver.R
 
-^data$
+^data-raw$
 ^docs$
 ^output$
