@@ -232,7 +232,13 @@ process_proteins <- function(data, peptides, config,
                                                 'primary_id')]) |>
 
     mutate(Description = str_split(Description, fixed('_')) |>
-             map_chr(~ .x[[2]]) |>
+             map_chr(~ 
+                    {
+                      if(any(is.na(.x)))
+                        return(NA)
+                      
+                      .x[[2]]
+                    }) |>
              str_replace(' OS$', '')) |>
 
     left_join({group_by(peptides, PROTEIN) |>
