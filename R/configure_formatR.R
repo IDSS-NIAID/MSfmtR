@@ -3,21 +3,39 @@
 #'
 #' @param config_file path to a yaml file with configuration settings
 #' @param args list of arguments to override defaults
+#' @param config_profile character, name of profile to use from `config_file`
+#' @param fill_default logical, fill in default values if using a different profile
 #'
 #' @return list of configuration settings
 #' @export
 #' @importFrom stringr fixed str_replace
-configure_formatR <- function(config_file = NULL, args = NULL)
+configure_formatR <- function(config_file = NULL, args = NULL,
+                              config_profile = 'default', fill_default = TRUE)
 {
   if(!is.null(args$config_file))
   {
     config_file <- args$config_file
   }
 
-  # read yaml file (requires config package)
+  # read yml file (requires config package)
   if(!is.null(config_file))
   {
-    config <- config::get(file = config_file)
+    config <- config::get(file = config_file,
+                          config = config_profile)
+
+    # if we are using a different profile, fill in missing values with defaults from `config_file`
+    if(fill_default & config_profile != 'default')
+    {
+      default <- config::get(file = config_file,
+                             config = 'default')
+      for(key in names(default))
+      {
+        if(is.null(config[[key]]))
+        {
+          config[[key]] <- default[[key]]
+        }
+      }
+    }
   }else{
     config <- list()
   }
@@ -99,7 +117,7 @@ configure_formatR <- function(config_file = NULL, args = NULL)
 
   if(is.null(config$normMeasure))
     config$normMeasure <- 'NormalizedPeakArea'
-  
+
   if(is.null(config$preprocess))
   {
     config$preprocess <- FALSE
