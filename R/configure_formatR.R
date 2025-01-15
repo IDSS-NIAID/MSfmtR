@@ -1,4 +1,12 @@
-
+#' configure_formatR
+#' Default configuration for MSfmtR
+#'
+#' @param config_file path to a yaml file with configuration settings
+#' @param args list of arguments to override defaults
+#'
+#' @return list of configuration settings
+#' @export
+#' @importFrom stringr fixed str_replace
 configure_formatR <- function(config_file = NULL, args = NULL)
 {
   if(!is.null(args$config_file))
@@ -51,6 +59,14 @@ configure_formatR <- function(config_file = NULL, args = NULL)
     config$sheet <- str_replace(config$out_xlsx, fixed('.xlsx'), '')
 
 
+  ## Sample parameters
+  if(is.null(config$smp_grp_rep))
+    config$smp_grp_rep <- 'R.FileName'
+
+  if(is.null(config$merge_method))
+    config$merge_method <- 'median'
+
+
   ## Filtering parameters
   if(is.null(config$uloq))
     config$uloq <- Inf
@@ -83,6 +99,13 @@ configure_formatR <- function(config_file = NULL, args = NULL)
 
   if(is.null(config$normMeasure))
     config$normMeasure <- 'NormalizedPeakArea'
+  
+  if(is.null(config$preprocess))
+  {
+    config$preprocess <- FALSE
+  }else{
+    config$preprocess <- as.logical(config$preprocess)
+  }
 
 
   ## Style parameters
@@ -103,7 +126,7 @@ configure_formatR <- function(config_file = NULL, args = NULL)
     {
       config$checkpoints <- c('xlsx', 'sql', 'processed', 'protein', 'peptide', 'wb')
     }else{
-      config$checkpoints <- str_split(config$checkpoints, ',') %>%
+      config$checkpoints <- str_split(config$checkpoints, ',') |>
         unlist()
     }
   }else{

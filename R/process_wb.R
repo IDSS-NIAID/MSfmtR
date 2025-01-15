@@ -1,9 +1,30 @@
-
+#' process_wb
+#' Format peptides and proteins for export to Excel
+#'
+#' @param proteins data frame of proteins data
+#' @param peptides data frame of peptides data
+#' @param config list of configuration parameters
+#' @param stage character path to checkpoint file
+#' @param save_intermediate logical save intermediate data
+#' @param n_proteins integer number of proteins to process
+#'
+#' @details This function processes formatted protein and peptide data and returns an excel workbook object ready for export to Excel. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
+#' @return An excel workbook object
+#' @export
+#' @importFrom dplyr tibble mutate mutate_all starts_with
+#' @importFrom openxlsx createWorkbook addWorksheet writeData groupRows addStyle createStyle
+#' @importFrom stringr str_replace_all
 process_wb <- function(proteins, peptides, config,
                        stage = file.path(config$output_dir, config$wb_checkpoint),
                        save_intermediate = TRUE,
                        n_proteins = NULL)
 {
+  # for those pesky no visible binding warnings
+  if(FALSE)
+    Protein <- Description <- Organism <- nAA <- `coverage%` <- `mass (kDa)` <- Modifications <-
+      PROTEIN <- PEPTIDE <- TRANSITION <- FEATURE <- Modification <- peptide_headers <- protein_rows <-
+      peptide_rows <- NULL
+
   # output order of protein columns
   proteins <- dplyr::select(proteins,
                             Protein, Description, Organism, nAA, `coverage%`, `mass (kDa)`,
@@ -24,7 +45,7 @@ process_wb <- function(proteins, peptides, config,
 
   # fix a bug in 63456e without rerunning the whole thing
   names(proteins) <- str_replace_all(names(proteins), '  ', ' ')
-  
+
   # make sure columns line up
   if(any(names(proteins)[starts_with('Abundance', vars = names(proteins))] !=
          names(peptides)[starts_with('Abundance', vars = names(peptides))]))
@@ -69,7 +90,7 @@ process_wb <- function(proteins, peptides, config,
   for(i in 1:min(n_proteins, dim(proteins)[1]))
   {
     proteins[i,] |>
-      
+
       mutate(Protein = as.character(Protein)) |>
 
       mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA
@@ -91,7 +112,7 @@ process_wb <- function(proteins, peptides, config,
     # add peptides
     tmp <- filter(peptides, PROTEIN == as.character(proteins$Protein[i]))
 
-    tmp %>%
+    tmp |>
       dplyr::select(-PROTEIN) |>
 
       mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA

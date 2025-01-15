@@ -1,6 +1,0 @@
-default:
-  input_dir: "data"
-  fasta_dir: "data/fasta"
-  output_dir: "output"
-  checkpoints: "xlsx,sql"
-  out_xlsx: "summary.xlsx"
