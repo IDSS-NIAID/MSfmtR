@@ -5,8 +5,11 @@
 #' @param stage character path to checkpoint file
 #' @param save_intermediate logical save intermediate data
 #' @param preprocess logical preprocess data using MSstats
+#' @param format character format of data (see `?raw_to_fld` for options)
 #'
-#' @details This function processes raw data into MSstats format. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file. This also has the side effect of changing/updating `config` in the calling environment.
+#' @details This function processes raw data into an MSstats formated object in R.
+#' If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
+#' This also has the side effect of changing/updating `config` in the calling environment.
 #'
 #' There are currently two tested functions for `convert_function`: `MSstatsConvert::SpectronauttoMSstatsFormat` and `MSfmtR::convert_spectronaut`. The `MSfmtR` version uses the abundance score from Spectronaut directly and does not perform any preprocessing.
 #'
@@ -21,7 +24,7 @@
 #' @importFrom stringr fixed str_split
 #' @importFrom utils combn
 process_raw <- function(config, stage = file.path(config$output_dir, config$processed_checkpoint),
-                        save_intermediate = TRUE, preprocess = TRUE)
+                        save_intermediate = TRUE, preprocess = TRUE, format = 'MSstats')
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -74,7 +77,7 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
 
 
   # process raw data
-  if(preprocess)
+  if(preprocess & format == 'MSstats')
   {
     # convert raw data into MSstats format
     data <- SpectronauttoMSstatsFormat(raw,
@@ -91,7 +94,55 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
                         normalization = FALSE,
                         use_log_file = FALSE)
   }else{
-    # peptide-level data (see documentation of `MSstats::dataProcess` at https://www.bioconductor.org/packages/devel/bioc/vignettes/MSstats/inst/doc/MSstats.html)
+
+    # convert raw data to FeatureLevelData (this keeps PG.Quantity for use in formatting protein-level data)
+    FeatureLevelData <- raw_to_fld(raw, format, config)
+
+    # final data object
+    data <- list(FeatureLevelData = dplyr::select(FeatureLevelData, -PG.Quantity),
+                 ProteinLevelData = fld_to_pld(FeatureLevelData),
+                 SummaryMethod = 'linear')
+
+  }
+
+  # save data
+  if(FALSE)
+    save(raw, file = file.path(config$output_dir, 'raw.RData'))
+
+  # checkpoint
+  if(save_intermediate)
+  {
+    config_bak <- config
+    save(data, config_bak, file = stage)
+  }
+
+  config <<- config
+  return(data)
+}
+
+
+#' raw_to_fld
+#' Convert raw data to FeatureLevelData
+#'
+#' @param raw data.frame
+#' @param format character describing the format of the raw data
+#' @param config list of configuration parameters
+#'
+#' @details The only config values used are `lloq` and `uloq`. These are used to filter out-of-spec data.
+#'
+#' Currently supported formats are
+#' 'MSstats', the MSstats report exported by Spectronaut, and
+#' 'other', the ... report exported by Spectronaut.
+#'
+#' @references See documentation of `MSstats::dataProcess` at https://www.bioconductor.org/packages/devel/bioc/vignettes/MSstats/inst/doc/MSstats.html)
+#'
+#' @value FeatureLevelData data.frame
+#' @export
+raw_to_fld <- function(raw, format = 'MSstats',
+                       config = list(lloq = 0, uloq = Inf))
+{
+  if(format == 'MSstats')
+  {
     raw <- raw |>
 
       # Figure out unique ID for each FrgIon (not unique)
@@ -123,64 +174,59 @@ process_raw <- function(config, stage = file.path(config$output_dir, config$proc
              ABUNDANCE = log10(INTENSITY),
              newABUNDANCE = ABUNDANCE,
              predicted = as.numeric(NA))
-
-    # create FeatureLevelData and filter
-    FeatureLevelData <- raw |>
-
-      dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, LABEL, GROUP, RUN, SUBJECT,
-                    FRACTION, originalRUN, censored, INTENSITY, ABUNDANCE, newABUNDANCE, PG.Quantity) |> # only using PG.Quantity for protein-level data. Drop it later.
-
-      dplyr::filter(INTENSITY > config$lloq, # remove out-of-spec peptides
-                    INTENSITY < config$uloq)
-
-    if(dim(FeatureLevelData)[1] == 0)
-      stop("No features left after filtering")
-
-
-    # protein-level data
-    ProteinLevelData = FeatureLevelData |>
-
-      group_by(RUN, PROTEIN) |>
-      mutate(NumMeasuredFeature = n(),
-             MissingPercentage = sum(INTENSITY < 1) / n(),
-             more50missing = MissingPercentage > 0.5,
-             NumImputedFeature = sum(is.na(INTENSITY))) |>
-      ungroup() |>
-
-      group_by(GROUP, PROTEIN) |>
-      mutate(TotalGroupMeasurements = n()) |>
-      ungroup() |>
-
-      dplyr::select(RUN, PROTEIN, originalRUN, GROUP, SUBJECT, PG.Quantity,                          # only keep protein-specific info
-                    TotalGroupMeasurements, NumMeasuredFeature, MissingPercentage, more50missing) |> # plus some summary stats
-      unique() |>
-
-      mutate(LogIntensities = log10(PG.Quantity),
-             NumImputedFeature = 0) |>
-
-      dplyr::select(RUN, PROTEIN, LogIntensities, originalRUN, GROUP, SUBJECT, TotalGroupMeasurements,
-                    NumMeasuredFeature, MissingPercentage, more50missing, NumImputedFeature) |>
-
-      dplyr::rename(Protein = PROTEIN)
-
-
-    # final data object
-    data <- list(FeatureLevelData = dplyr::select(FeatureLevelData, -PG.Quantity),
-                 ProteinLevelData = ProteinLevelData,
-                 SummaryMethod = 'linear')
+  }else{
+    stop("Unknown format")
   }
 
-  # save data
-  if(FALSE)
-    save(raw, file = file.path(config$output_dir, 'raw.RData'))
+  # create FeatureLevelData and filter
+  FeatureLevelData <- raw |>
 
-  # checkpoint
-  if(save_intermediate)
-  {
-    config_bak <- config
-    save(data, config_bak, file = stage)
-  }
+    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, LABEL, GROUP, RUN, SUBJECT,
+                  FRACTION, originalRUN, censored, INTENSITY, ABUNDANCE, newABUNDANCE, PG.Quantity) |> # only using PG.Quantity for protein-level data. Drop it later.
 
-  config <<- config
-  return(data)
+    dplyr::filter(INTENSITY > config$lloq, # remove out-of-spec peptides
+                  INTENSITY < config$uloq)
+
+  if(dim(FeatureLevelData)[1] == 0)
+    stop("No features left after filtering")
+
+  return(FeatureLevelData)
 }
+
+
+#' fld_to_pld
+#' Convert FeatureLevelData to ProteinLevelData
+#'
+#' @param fld FeatureLevelData
+#'
+#' @value ProteinLevelData data.frame
+#' @export
+#' @importFrom dplyr group_by mutate ungroup select unique rename
+fld_to_pld <- function(fld)
+{
+  fld |>
+
+    group_by(RUN, PROTEIN) |>
+    mutate(NumMeasuredFeature = n(),
+           MissingPercentage = sum(INTENSITY < 1) / n(),
+           more50missing = MissingPercentage > 0.5,
+           NumImputedFeature = sum(is.na(INTENSITY))) |>
+    ungroup() |>
+
+    group_by(GROUP, PROTEIN) |>
+    mutate(TotalGroupMeasurements = n()) |>
+    ungroup() |>
+
+    dplyr::select(RUN, PROTEIN, originalRUN, GROUP, SUBJECT, PG.Quantity,                          # only keep protein-specific info
+                  TotalGroupMeasurements, NumMeasuredFeature, MissingPercentage, more50missing) |> # plus some summary stats
+    unique() |>
+
+    mutate(LogIntensities = log10(PG.Quantity),
+           NumImputedFeature = 0) |>
+
+    dplyr::select(RUN, PROTEIN, LogIntensities, originalRUN, GROUP, SUBJECT, TotalGroupMeasurements,
+                  NumMeasuredFeature, MissingPercentage, more50missing, NumImputedFeature) |>
+
+    dplyr::rename(Protein = PROTEIN)
+}
+

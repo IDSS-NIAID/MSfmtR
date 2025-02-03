@@ -125,6 +125,9 @@ configure_formatR <- function(config_file = NULL, args = NULL,
     config$preprocess <- as.logical(config$preprocess)
   }
 
+  if(is.null(config$format))
+    config$format <- 'MSstats'
+
 
   ## Style parameters
   if(is.null(config$protein_header_fill))
