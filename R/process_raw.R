@@ -189,6 +189,14 @@ process_raw <- function(config = configure_formatR(),
 raw_to_fld <- function(raw, format = 'MSstats',
                        config = list(lloq = 0, uloq = Inf))
 {
+  # for those pesky no visible binding warnings
+  R.Replicate <- R.Condition <- R.FileName <- PG.ProteinAccessions <- PG.Quantity <- PEP.GroupingKey <-
+    EG.ModifiedSequence <- EG.PrecursorId <- FG.Quantity <-
+    F.FrgIon <- F.Charge <- F.FrgLossType <- F.NormalizedPeakArea <- F.NormalizedPeakHeight <-
+    Intensity_measure <- INTENSITY <- TRANSITION <- FEATURE <- PROTEIN <- PEPTIDE <- originalRUN <-
+    LABEL <- GROUP <- RUN <- SUBJECT <- FRACTION <- censored <- newABUNDANCE <- ABUNDANCE <-
+    FrgIon.uid <- PEP.Quantity <- NULL
+
   if(format == 'MSstats')
   {
     # Figure out unique ID for each FrgIon (not unique)
@@ -298,6 +306,12 @@ raw_to_fld <- function(raw, format = 'MSstats',
 #' @importFrom dplyr group_by mutate ungroup select rename
 fld_to_pld <- function(fld)
 {
+  # for those pesky no visible binding warnings
+  RUN <- PROTEIN <- originalRUN <- GROUP <- SUBJECT <- PG.Quantity <-
+    TotalGroupMeasurements <- NumMeasuredFeature <- MissingPercentage <-
+    more50missing <- NumImputedFeature <- LogIntensities <- INTENSITY <- NULL
+
+
   fld |>
 
     group_by(RUN, PROTEIN) |>

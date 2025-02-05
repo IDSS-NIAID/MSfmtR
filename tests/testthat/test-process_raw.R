@@ -9,7 +9,7 @@ test_that("Raw data processing", {
   data <- configure_formatR(args = list(input_dir = system.file('extdata', package = 'MSfmtR'),
                                         in_file = 'spectronaut_report.tsv',
                                         peptide_summary = 'none')) |>
-    process_raw()
+    process_raw(save_intermediate = FALSE)
 
   # should have one row per fragment from raw in FeatureLevelData
   expect_equal(nrow(data$FeatureLevelData), nrow(raw))
@@ -26,7 +26,7 @@ test_that("Raw data processing", {
   data <- configure_formatR(args = list(input_dir = system.file('extdata', package = 'MSfmtR'),
                                         in_file = 'spectronaut_report.tsv',
                                         peptide_summary = 'FG')) |>
-    process_raw()
+    process_raw(save_intermediate = FALSE)
 
   # should have one row per fragment group from raw in FeatureLevelData
   expect_equal(nrow(data$FeatureLevelData),
@@ -46,7 +46,7 @@ test_that("Raw data processing", {
   data <- configure_formatR(args = list(input_dir = system.file('extdata', package = 'MSfmtR'),
                                         in_file = 'spectronaut_report.tsv',
                                         peptide_summary = 'PEP')) |>
-    process_raw()
+    process_raw(save_intermediate = FALSE)
 
   # should have one row per peptide from raw in FeatureLevelData
   expect_equal(nrow(data$FeatureLevelData),

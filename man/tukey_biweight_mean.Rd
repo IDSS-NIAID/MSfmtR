@@ -5,7 +5,7 @@
 \title{tukey_biweight_mean
 Tukey Biweight Mean}
 \source{
-Function definition provided by Gemini 2.0 Flash
+Original function definition provided by Gemini 2.0 Flash
 }
 \usage{
 tukey_biweight_mean(x, c = 4.685)

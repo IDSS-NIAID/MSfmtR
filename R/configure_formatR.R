@@ -83,6 +83,8 @@ configure_formatR <- function(config_file = NULL, args = NULL,
 #'
 #' @param config list of configuration settings
 #' @param ... named arguments to update
+#'
+#' @importFrom methods is
 updt_config <- function(config, ...)
 {
   updates <- list(...)
@@ -95,7 +97,7 @@ updt_config <- function(config, ...)
     # if the value is NULL, set it to the default
     if(is.null(config[[key]]) & !is.null(defaults[[key]]))
     {
-      if(class(defaults[[key]]) == 'expression')
+      if(is(defaults[[key]], 'expression'))
       {
         config[[key]] <- with(config, eval(defaults[[key]])) # execute in the context of config
       }else{
