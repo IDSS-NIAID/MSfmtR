@@ -31,6 +31,7 @@ defaults <- list(
 
   # MSStats parameters
   ratios = NULL, # if ratios is null, we'll fill it in after reading in the raw data
+  peptide_summary = 'PEP',
   normMeasure = 'NormalizedPeakArea',
   preprocess = FALSE,
   format = 'MSstats',
