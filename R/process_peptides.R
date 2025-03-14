@@ -3,9 +3,9 @@
 #'
 #' @param data MSstats formatted data
 #' @param config list of configuration parameters
-#' @param merge_method character value defining the method to use for merging peptide data. Valid options are 'median', 'mean', 'lmer'.
-#' @param stage character path to checkpoint file
 #' @param save_intermediate logical save intermediate data
+#' @param peptide_rollup_fun function to use for rolling up peptide data to the elution group level. Default is median.
+#' @param ... additional arguments to pass to `updt_config`
 #'
 #' @details This function processes MSstats formatted data and returns peptides ready for ProtResDash. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
 #'
@@ -23,14 +23,19 @@
 #' @importFrom stats median sd vcov
 #' @importFrom stringr fixed str_replace_all
 #' @importFrom tidyr pivot_wider
-process_peptides <- function(data, config, merge_method = 'median',
-                             stage = file.path(config$output_dir, config$peptide_checkpoint),
-                             save_intermediate = TRUE)
+process_peptides <- function(data, config, save_intermediate = TRUE,
+                             peptide_rollup_fun = function(x) median(x, na.rm = TRUE),
+                             ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
     PROTEIN <- FEATURE <- GROUP <- INTENSITY <- ABUNDANCE <- id <- cv <- originalRUN <- SUBJECT <-
       PEPTIDE <- TRANSITION <- Modification <- group <- model <- models <- group <- NULL
+
+
+  # update config and pull package defaults if needed
+  config <- updt_config(config, ...)
+
 
   # add sample/group information if provided
   data$FeatureLevelData <- map_samples(data$FeatureLevelData, config) |>
@@ -39,7 +44,7 @@ process_peptides <- function(data, config, merge_method = 'median',
 
 
   # calculate group abundance statistics for peptides
-  if(merge_method == 'median'){
+  if(config$merge_method == 'median'){
 
     peptides_long <- data$FeatureLevelData |>
 
@@ -50,7 +55,7 @@ process_peptides <- function(data, config, merge_method = 'median',
 
       ungroup()
 
-  }else if(merge_method == 'mean'){
+  }else if(config$merge_method == 'mean'){
 
     peptides_long <- data$FeatureLevelData |>
 
@@ -61,7 +66,7 @@ process_peptides <- function(data, config, merge_method = 'median',
 
       ungroup()
 
-  }else if(merge_method == 'lmer'){
+  }else if(config$merge_method == 'lmer'){
     peptides_long <- data$FeatureLevelData |>
 
       group_by(PROTEIN, FEATURE, group) |>
@@ -133,11 +138,16 @@ process_peptides <- function(data, config, merge_method = 'median',
                                     })) |>
 
 
-    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, Modification, id, INTENSITY) |>
+    dplyr::select(PROTEIN, PEPTIDE, FEATURE, Modification, id, INTENSITY) |>
 
     arrange(id) |> # sort by id - this keeps column names in the same order as in `proteins`
 
     unique() |> # remove duplicates - these do appear rarely in the data
+
+    # roll up peptides to elution group level
+    group_by(PROTEIN, PEPTIDE, FEATURE, Modification, id) |>
+    summarize(INTENSITY = peptide_rollup_fun(INTENSITY)) |>
+    ungroup() |>
 
     pivot_wider(names_from = id, values_from = INTENSITY) |>
 
@@ -157,7 +167,7 @@ process_peptides <- function(data, config, merge_method = 'median',
 
   # checkpoint
   if(save_intermediate)
-    save(peptides, file = stage)
+    save(peptides, file = file.path(config$output_dir, config$peptide_checkpoint))
 
   return(peptides)
 }

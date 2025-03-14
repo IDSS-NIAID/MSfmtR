@@ -8,9 +8,9 @@ Process peptides from raw data}
 process_peptides(
   data,
   config,
-  merge_method = "median",
-  stage = file.path(config$output_dir, config$peptide_checkpoint),
-  save_intermediate = TRUE
+  save_intermediate = TRUE,
+  peptide_rollup_fun = function(x) median(x, na.rm = TRUE),
+  ...
 )
 }
 \arguments{
@@ -18,11 +18,11 @@ process_peptides(
 
 \item{config}{list of configuration parameters}
 
-\item{merge_method}{character value defining the method to use for merging peptide data. Valid options are 'median', 'mean', 'lmer'.}
-
-\item{stage}{character path to checkpoint file}
-
 \item{save_intermediate}{logical save intermediate data}
+
+\item{peptide_rollup_fun}{function to use for rolling up peptide data to the elution group level. Default is median.}
+
+\item{...}{additional arguments to pass to `updt_config`}
 }
 \value{
 data frame of processed peptide data
