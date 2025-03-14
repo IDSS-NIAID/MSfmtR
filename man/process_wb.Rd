@@ -9,9 +9,9 @@ process_wb(
   proteins,
   peptides,
   config,
-  stage = file.path(config$output_dir, config$wb_checkpoint),
   save_intermediate = TRUE,
-  n_proteins = NULL
+  n_proteins = dim(proteins)[1],
+  ...
 )
 }
 \arguments{
@@ -21,11 +21,11 @@ process_wb(
 
 \item{config}{list of configuration parameters}
 
-\item{stage}{character path to checkpoint file}
-
 \item{save_intermediate}{logical save intermediate data}
 
-\item{n_proteins}{integer number of proteins to process}
+\item{n_proteins}{integer number of proteins to process (use a small number to test output prior to running a large data set)}
+
+\item{...}{additional arguments passed to `updt_config`}
 }
 \value{
 An excel workbook object

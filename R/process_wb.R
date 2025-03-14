@@ -4,9 +4,9 @@
 #' @param proteins data frame of proteins data
 #' @param peptides data frame of peptides data
 #' @param config list of configuration parameters
-#' @param stage character path to checkpoint file
 #' @param save_intermediate logical save intermediate data
-#' @param n_proteins integer number of proteins to process
+#' @param n_proteins integer number of proteins to process (use a small number to test output prior to running a large data set)
+#' @param ... additional arguments passed to `updt_config`
 #'
 #' @details This function processes formatted protein and peptide data and returns an excel workbook object ready for export to Excel. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
 #' @return An excel workbook object
@@ -14,10 +14,8 @@
 #' @importFrom dplyr tibble mutate mutate_all starts_with
 #' @importFrom openxlsx createWorkbook addWorksheet writeData groupRows addStyle createStyle
 #' @importFrom stringr str_replace_all
-process_wb <- function(proteins, peptides, config,
-                       stage = file.path(config$output_dir, config$wb_checkpoint),
-                       save_intermediate = TRUE,
-                       n_proteins = NULL)
+process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
+                       n_proteins = dim(proteins)[1], ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -25,6 +23,15 @@ process_wb <- function(proteins, peptides, config,
       PROTEIN <- PEPTIDE <- TRANSITION <- FEATURE <- Modification <- peptide_headers <- protein_rows <-
       peptide_rows <- NULL
 
+  config <- updt_config(config, ...)
+  
+  # check sheet name for length requirements
+  if(nchar(config$sheet) > 31)
+  {
+    warning('Sheet name is too long. Truncating to 31 characters.')
+    config$sheet <- substr(config$sheet, 1, 31)
+  }
+  
   # output order of protein columns
   proteins <- dplyr::select(proteins,
                             Protein, Description, Organism, nAA, `coverage%`, `mass (kDa)`,
@@ -37,7 +44,7 @@ process_wb <- function(proteins, peptides, config,
 
   # output order of peptide columns
   peptides <- dplyr::select(peptides,
-                            PROTEIN, PEPTIDE, TRANSITION, FEATURE,
+                            PROTEIN, PEPTIDE, FEATURE,
                             Modification,
                             starts_with('Abundance'),
                             starts_with('Group Abundance'),
@@ -194,7 +201,7 @@ process_wb <- function(proteins, peptides, config,
 
   #openXL(wb)
   if(save_intermediate)
-    save(wb, indices, file = stage)
+    save(wb, indices, file = file.path(config$output_dir, config$wb_checkpoint))
 
   return(wb)
 }
