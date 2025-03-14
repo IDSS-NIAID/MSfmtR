@@ -2,25 +2,8 @@
 #' Process raw data into MSstats format
 #'
 #' @param config list of configuration parameters
-#' @param stage character path to checkpoint file
 #' @param save_intermediate logical save intermediate data
-#' @param preprocess logical preprocess data using MSstats
-#' @param format character format of data (see `?raw_to_fld` for options)
-#' @param normMeasure character normalization measure (ignored when `preprocess` is TRUE or when `peptide_summary != 'none'`)
-#' @param peptide_summary character flagging level of peptide summarization (ignored when `preprocess` is TRUE). Options: 'PEP' for peptide level (default), 'FG' for fragment group level, or 'none' to leave at the fragment level.
-#' @param input_dir character path to directory containing raw data
-#' @param in_file character name of raw data file
-#' @param output_dir character path to directory for output
-#' @param processed_checkpoint character name of checkpoint file for processed data
-#' @param fasta_dir character path to directory containing fasta files
-#' @param cont_fasta character path to fasta file containing contaminants
-#' @param ratios character vector of the contrasts to be used in the MSstats analysis.
-#'  Default is all combinations of all levels in of `R.Condition` in `in_file`.
-#'  Each ratio in the list should be of the form "<group1>/<group2>", so for group1=Case and group2=Control, the ratio would be "Case/Control".
-#' @param groups Need to review how this is used
-#' @param lloq numeric lower limit of quantification
-#' @param uloq numeric upper limit of quantification
-#'
+#' @param ... other parameters passed to `updt_config`
 #'
 #' @details This function processes raw data into an MSstats formatted object in R.
 #' If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
@@ -39,14 +22,7 @@
 #' @importFrom readr read_delim
 #' @importFrom stringr fixed str_split
 #' @importFrom utils combn
-process_raw <- function(config = configure_formatR(),
-                        stage = file.path(config$output_dir, config$processed_checkpoint),
-                        save_intermediate = TRUE,
-                        preprocess = NULL, format = NULL, normMeasure = NULL, peptide_summary = NULL,
-                        input_dir = NULL, in_file = NULL, output_dir = NULL, processed_checkpoint = NULL,
-                        fasta_dir = NULL, cont_fasta = NULL,
-                        ratios = NULL, groups = NULL,
-                        lloq = NULL, uloq = NULL)
+process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -58,14 +34,7 @@ process_raw <- function(config = configure_formatR(),
       TotalGroupMeasurements <- TRANSITION <- NULL
 
   # update config with parameters
-  config <- updt_config(config,
-                        preprocess = preprocess, format = format,
-                        normMeasure = normMeasure, peptide_summary = peptide_summary,
-                        input_dir = input_dir, in_file = in_file,
-                        output_dir = output_dir, processed_checkpoint = processed_checkpoint,
-                        fasta_dir = fasta_dir, cont_fasta = cont_fasta,
-                        ratios = ratios, groups = groups,
-                        lloq = lloq, uloq = uloq)
+  config <- updt_config(config, ...)
 
 
   # figure out where contaminants file is located - if it is already a valid path we can move on
@@ -89,7 +58,7 @@ process_raw <- function(config = configure_formatR(),
 
   # Load and process the data
   raw <- with(config, file.path(input_dir, in_file)) |>
-    read_delim(delim = "\t", col_names = TRUE) |>
+    read_delim(delim = "\t", col_names = TRUE, show_col_types = FALSE) |>
     dplyr::filter(!PG.ProteinAccessions %in% contam &
                     !grepl('Cont_', PG.ProteinAccessions, fixed = TRUE))
 
@@ -186,8 +155,7 @@ process_raw <- function(config = configure_formatR(),
 #'
 #' @return FeatureLevelData data.frame
 #' @export
-raw_to_fld <- function(raw, format = 'MSstats',
-                       config = list(lloq = 0, uloq = Inf))
+raw_to_fld <- function(raw, format = 'MSstats', config)
 {
   # for those pesky no visible binding warnings
   R.Replicate <- R.Condition <- R.FileName <- PG.ProteinAccessions <- PG.Quantity <- PEP.GroupingKey <-
@@ -212,7 +180,7 @@ raw_to_fld <- function(raw, format = 'MSstats',
       # format information for FeatureLevelData at the fragment level
       mutate(TRANSITION = paste(F.FrgIon, FrgIon.uid, sep = "_") |>
                factor(),
-             FEATURE = paste(EG.PrecursorId, TRANSITION, sep = "_") |>
+             FEATURE = EG.ModifiedSequence |>
                factor())
 
 

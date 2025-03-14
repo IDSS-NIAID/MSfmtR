@@ -5,62 +5,14 @@
 \title{process_raw
 Process raw data into MSstats format}
 \usage{
-process_raw(
-  config = configure_formatR(),
-  stage = file.path(config$output_dir, config$processed_checkpoint),
-  save_intermediate = TRUE,
-  preprocess = NULL,
-  format = NULL,
-  normMeasure = NULL,
-  peptide_summary = NULL,
-  input_dir = NULL,
-  in_file = NULL,
-  output_dir = NULL,
-  processed_checkpoint = NULL,
-  fasta_dir = NULL,
-  cont_fasta = NULL,
-  ratios = NULL,
-  groups = NULL,
-  lloq = NULL,
-  uloq = NULL
-)
+process_raw(config = configure_formatR(), save_intermediate = TRUE, ...)
 }
 \arguments{
 \item{config}{list of configuration parameters}
 
-\item{stage}{character path to checkpoint file}
-
 \item{save_intermediate}{logical save intermediate data}
 
-\item{preprocess}{logical preprocess data using MSstats}
-
-\item{format}{character format of data (see `?raw_to_fld` for options)}
-
-\item{normMeasure}{character normalization measure (ignored when `preprocess` is TRUE or when `peptide_summary != 'none'`)}
-
-\item{peptide_summary}{character flagging level of peptide summarization (ignored when `preprocess` is TRUE). Options: 'PEP' for peptide level (default), 'FG' for fragment group level, or 'none' to leave at the fragment level.}
-
-\item{input_dir}{character path to directory containing raw data}
-
-\item{in_file}{character name of raw data file}
-
-\item{output_dir}{character path to directory for output}
-
-\item{processed_checkpoint}{character name of checkpoint file for processed data}
-
-\item{fasta_dir}{character path to directory containing fasta files}
-
-\item{cont_fasta}{character path to fasta file containing contaminants}
-
-\item{ratios}{character vector of the contrasts to be used in the MSstats analysis.
-Default is all combinations of all levels in of `R.Condition` in `in_file`.
-Each ratio in the list should be of the form "<group1>/<group2>", so for group1=Case and group2=Control, the ratio would be "Case/Control".}
-
-\item{groups}{Need to review how this is used}
-
-\item{lloq}{numeric lower limit of quantification}
-
-\item{uloq}{numeric upper limit of quantification}
+\item{...}{other parameters passed to `updt_config`}
 }
 \value{
 data frame of processed raw data
