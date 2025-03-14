@@ -6,6 +6,8 @@
 #' @param config_profile character, name of profile to use from `config_file`
 #' @param fill_default logical, fill in default values if using a profile other than 'default'
 #'
+#' @details See the package README at https://github.com/IDSS-NIAID/MSfmtR for a complete list of configuration settings.
+#'
 #' @return list of configuration settings
 #' @export
 #' @importFrom stringr fixed str_replace
@@ -84,6 +86,12 @@ configure_formatR <- function(config_file = NULL, args = NULL,
 #' @param config list of configuration settings
 #' @param ... named arguments to update
 #'
+#' @details
+#' The default configuration settings can be found in the `defaults` object.
+#' This function is used to update any unspecified configuration settings with these defaults.
+#' In other words, if a value is NULL, it will be set to the default value.
+#' Settable configuration options are discussed in the package README (see https://github.com/IDSS-NIAID/MSfmtR).
+#'
 #' @importFrom methods is
 updt_config <- function(config, ...)
 {
@@ -96,6 +104,20 @@ updt_config <- function(config, ...)
 
     # if the value is NULL, set it to the default
     if(is.null(config[[key]]) & !is.null(defaults[[key]]))
+    {
+      if(is(defaults[[key]], 'expression'))
+      {
+        config[[key]] <- with(config, eval(defaults[[key]])) # execute in the context of config
+      }else{
+        config[[key]] <- defaults[[key]]
+      }
+    }
+  }
+  
+  # check for any remaining NULL values and fill in with defaults
+  for(key in names(defaults))
+  {
+    if(is.null(config[[key]]))
     {
       if(is(defaults[[key]], 'expression'))
       {
