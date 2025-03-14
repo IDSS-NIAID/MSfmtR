@@ -4,8 +4,8 @@
 #' @param data MSstats formatted data
 #' @param peptides processed and formatted peptides data
 #' @param config list of configuration parameters
-#' @param stage character path to checkpoint file
 #' @param save_intermediate logical save intermediate data
+#' @param ... additional arguments to pass to `updt_config`
 #'
 #' @details This function processes MSstats formatted data and returns proteins ready for ProtResDash. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
 #' @return data frame of processed proteins data
@@ -20,9 +20,7 @@
 #' @importFrom stringr fixed str_locate_all str_split str_sub_all str_length str_replace
 #' @importFrom tidyr pivot_wider
 #' @importFrom UniProt.ws UniProt.ws
-process_proteins <- function(data, peptides, config,
-                             stage = file.path(config$output_dir, config$protein_checkpoint),
-                             save_intermediate = TRUE)
+process_proteins <- function(data, peptides, config, save_intermediate = TRUE, ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -30,6 +28,9 @@ process_proteins <- function(data, peptides, config,
       GROUP <- originalRUN <- SUBJECT <- LogIntensities <- id <- run <- NumMeasuredFeature <- MissingPercentage <-
       more50missing <- NumImputedFeature <- TotalGroupMeasurements <- Intensity <- Description <-
       PROTEIN <- Modification <- RUN <- group <- models <- primary_id <- NULL
+
+  # update config and pull package defaults if needed
+  config <- updt_config(config, ...)
 
   # contrasts
   contrasts <- matrix(0, nrow = nrow(config$ratios), ncol = length(levels(data$FeatureLevelData$GROUP)),
@@ -111,20 +112,33 @@ process_proteins <- function(data, peptides, config,
                      map_chr(~ .x[3]),
                    Organism = map_chr(fasta_meta, ~ .x['OS']),
                    Sequence = as.character(fasta))
-
-    # otherwise get UniProt metadata - manually search individual IDs here: https://www.uniprot.org/uniprotkb
   }else{
-    # all protein IDs
-    proteinIDs <- data$ProteinLevelData$Protein |>
-      str_split(fixed(';')) |>
-      unlist()
+    meta <- tibble(Protein = NA,
+                   Description = NA,
+                   Organism = NA,
+                   Sequence = NA) |>
+      dplyr::filter(!is.na(Protein))
+  }
+  
+  # get UniProt metadata for anything not in `meta`
+  # manually search individual IDs here: https://www.uniprot.org/uniprotkb
+  
+  # missing protein IDs
+  proteinIDs <- data$ProteinLevelData$Protein |>
+    str_split(fixed(';')) |>
+    unlist()
+  proteinIDs <- proteinIDs[!proteinIDs %in% meta$Protein]
 
+  if(length(proteinIDs) > 0)
+  {
     meta <- UniProt.ws::select(UniProt.ws(taxId=config$taxId),
                                proteinIDs,
                                c('organism_name', 'protein_name', 'sequence')) |>
-      dplyr::select(Entry, Organism, Protein.names, Sequence) |>
+      dplyr::select(Entry, Protein.names, Organism, Sequence) |>
       dplyr::rename(Protein = Entry,
-                    Description = Protein.names)
+                    Description = Protein.names) |>
+      
+      bind_rows(meta)
   }
 
 
@@ -232,12 +246,15 @@ process_proteins <- function(data, peptides, config,
                                                 'primary_id')]) |>
 
     mutate(Description = str_split(Description, fixed('_')) |>
-             map_chr(~ 
+             map_chr(~
                     {
                       if(any(is.na(.x)))
                         return(NA)
                       
-                      .x[[2]]
+                      if(length(.x) > 1)
+                        return(.x[[2]])
+                      
+                      .x
                     }) |>
              str_replace(' OS$', '')) |>
 
@@ -261,7 +278,7 @@ process_proteins <- function(data, peptides, config,
               AAStringSet(filter(peptides, PROTEIN == as.character(proteins$Protein[i]))$PEPTIDE |> unique()))
 
     # align sequences and convert to matrix
-    aligned <- try({msa(seqs) |>
+    aligned <- try({msa(seqs)@unmasked |>
                     as.matrix()})
 
     # calculate coverage (proportion of non-dashes in the alignment)
@@ -283,7 +300,7 @@ process_proteins <- function(data, peptides, config,
 
   # checkpoint
   if(save_intermediate)
-    save(proteins, file = stage)
+    save(proteins, file = file.path(config$output_dir, config$protein_checkpoint))
 
   return(proteins)
 }

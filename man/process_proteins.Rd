@@ -5,13 +5,7 @@
 \title{process_proteins
 Process proteins from raw data}
 \usage{
-process_proteins(
-  data,
-  peptides,
-  config,
-  stage = file.path(config$output_dir, config$protein_checkpoint),
-  save_intermediate = TRUE
-)
+process_proteins(data, peptides, config, save_intermediate = TRUE, ...)
 }
 \arguments{
 \item{data}{MSstats formatted data}
@@ -20,9 +14,9 @@ process_proteins(
 
 \item{config}{list of configuration parameters}
 
-\item{stage}{character path to checkpoint file}
-
 \item{save_intermediate}{logical save intermediate data}
+
+\item{...}{additional arguments to pass to `updt_config`}
 }
 \value{
 data frame of processed proteins data
