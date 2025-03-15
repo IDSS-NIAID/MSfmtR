@@ -28,3 +28,6 @@ list of configuration settings
 configure_formatR
 Default configuration for MSfmtR
 }
+\details{
+See the package README at https://github.com/IDSS-NIAID/MSfmtR for a complete list of configuration settings.
+}

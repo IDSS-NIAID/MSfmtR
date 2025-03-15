@@ -16,3 +16,9 @@ updt_config(config, ...)
 updt_config
 Update configuration settings (primarily used for local changes to defaults)
 }
+\details{
+The default configuration settings can be found in the `defaults` object.
+This function is used to update any unspecified configuration settings with these defaults.
+In other words, if a value is NULL, it will be set to the default value.
+Settable configuration options are discussed in the package README (see https://github.com/IDSS-NIAID/MSfmtR).
+}

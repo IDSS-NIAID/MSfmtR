@@ -4,24 +4,28 @@
 \alias{check_missingness}
 \title{check_missingness}
 \usage{
-check_missingness(dat, cols, out = "drop", prop_good = 0.5, llod = 1e+06)
+check_missingness(dat, cols, prop_good = 1, llod = 0)
 }
 \arguments{
 \item{dat}{data.frame or matrix to check}
 
 \item{cols}{Vector of columns to check for missingness}
 
-\item{out}{Character value to label output column}
-
-\item{prop_good}{Numeric proportion of good values to keep. Default, 0.5, indicates at least 50 percent of values must be non-missing and above the lower limit of detection.}
+\item{prop_good}{Numeric proportion of good values to keep.}
 
 \item{llod}{Numeric lower limit of detection. Any value below this will be considered missing.}
 }
 \value{
-data frame or matrix with missingness information added as a new column
+vector of logicals indicating which rows to filter / drop
 }
 \description{
 Check for missingness in data for a group of columns and flag rows with too many missing or low values.
+}
+\details{
+By default, this function ignores the `llod` argument (since `llod = Inf`) and requires all values to be non-missing.
+If the lower limit of detection for your assay is 1e6, for example, you can set `llod = 1e6` to treat any value below this as missing.
+To allow for missing values, set `prop_good` to something less than 1.
+For example, 0.5 indicates at least 50 percent of values on a row must be non-missing and above the lower limit of detection.
 }
 \examples{
 set.seed(294873)
@@ -38,7 +42,7 @@ dat <- data.frame(pep = c(1, 2, 3),
                   D = runif(3) * c(1e7, 1e7, 1e4))
 
 # all rows have at least two good values, so no rows are flagged to drop
-check_missingness(dat, 2:5)
+check_missingness(dat, 2:5, prop_good = 0.5)
 
 # the second and third rows have less than 60\% good values, so they are flagged to drop
 check_missingness(dat, 2:5, prop_good = 0.6)

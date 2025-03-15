@@ -5,7 +5,7 @@
 \title{raw_to_fld
 Convert raw data to FeatureLevelData}
 \usage{
-raw_to_fld(raw, format = "MSstats", config = list(lloq = 0, uloq = Inf))
+raw_to_fld(raw, format = "MSstats", config)
 }
 \arguments{
 \item{raw}{data.frame}
