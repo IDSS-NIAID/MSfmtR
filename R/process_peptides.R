@@ -138,18 +138,24 @@ process_peptides <- function(data, config, save_intermediate = TRUE,
                                     })) |>
 
 
-    dplyr::select(PROTEIN, PEPTIDE, FEATURE, Modification, id, INTENSITY) |>
+    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, Modification, id, INTENSITY, qvalue) |>
 
     arrange(id) |> # sort by id - this keeps column names in the same order as in `proteins`
 
     unique() |> # remove duplicates - these do appear rarely in the data
 
-    # roll up peptides to elution group level
-    group_by(PROTEIN, PEPTIDE, FEATURE, Modification, id) |>
-    summarize(INTENSITY = peptide_rollup_fun(INTENSITY)) |>
+    # drop any non-unique qvalues
+    group_by(PROTEIN, PEPTIDE, TRANSITION, FEATURE, Modification, id, INTENSITY) |>
+    summarize(l = length(unique(qvalue)),
+              qvalue = ifelse(l != 1, NA, map_dbl(qvalue, ~ mean(.x, na.rm = TRUE)))) |>
     ungroup() |>
 
-    pivot_wider(names_from = id, values_from = INTENSITY) |>
+    # pivot wider to one row per peptide
+    pivot_wider(names_from = id, values_from = c(INTENSITY, qvalue)) |>
+    
+    # remove extra information in names
+    dplyr::rename_with(~ str_replace_all(.x, pattern = fixed('INTENSITY_Abundance'), replacement = 'Abundance') |>
+                         str_replace_all(pattern = fixed('qvalue_Abundance'), replacement = 'qvalue')) |>
 
     # merge stats into peptides
     left_join(peptides, by = c('PROTEIN', 'FEATURE'))

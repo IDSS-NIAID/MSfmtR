@@ -59,8 +59,9 @@ process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, 
   # Load and process the data
   raw <- with(config, file.path(input_dir, in_file)) |>
     read_delim(delim = "\t", col_names = TRUE, show_col_types = FALSE) |>
-    dplyr::filter(!PG.ProteinAccessions %in% contam &
-                    !grepl('Cont_', PG.ProteinAccessions, fixed = TRUE))
+    dplyr::filter(!PG.ProteinAccessions %in% contam,
+                  !grepl('Cont_', PG.ProteinAccessions, fixed = TRUE),
+                  !F.ExcludedFromQuantification)
 
 
   ########## do protein group analysis here ##########
@@ -169,6 +170,8 @@ raw_to_fld <- function(raw, format = 'MSstats', config)
   {
     # Figure out unique ID for each FrgIon (not unique)
     raw <- raw |>
+      dplyr::filter(!F.ExcludedFromQuantification) |> # drop any fragments that weren't used
+      
       group_by(PG.ProteinAccessions, EG.PrecursorId, F.FrgIon) |>
 
       mutate(FrgIon.uid = paste(EG.PrecursorId, F.FrgIon, F.Charge, F.FrgLossType, sep = "_") |>
@@ -214,14 +217,22 @@ raw_to_fld <- function(raw, format = 'MSstats', config)
 
         # concatenate TRANSITION and FEATURE by group
         mutate(TRANSITION = as.character(TRANSITION) |> unique() |> paste(collapse = ','),
-               FEATURE    = as.character(FEATURE   ) |> unique() |> paste(collapse = ',')) |>
+               FEATURE    = as.character(FEATURE   ) |> unique() |> paste(collapse = ','),
+               qvalue     = map_dbl(EG.Qvalue, ~ 
+                                    {
+                                      # these should all be the same, but if not, throw them out
+                                      retval <- unique(.x)
+                                      if(length(retval) > 1)
+                                        return(NA)
+                                      retval
+                                    })) |>
         ungroup() |>
 
         # remove extra columns and duplicate rows that we just summarized
         dplyr::select(R.FileName, R.Condition, R.Replicate,
                       PG.ProteinAccessions, PG.Quantity,
                       EG.ModifiedSequence,
-                      TRANSITION, FEATURE,
+                      TRANSITION, FEATURE, qvalue,
                       Intensity_measure) |>
         unique()
     }
@@ -251,8 +262,8 @@ raw_to_fld <- function(raw, format = 'MSstats', config)
   # create FeatureLevelData and filter
   FeatureLevelData <- raw |>
 
-    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, LABEL, GROUP, RUN, SUBJECT,
-                  FRACTION, originalRUN, censored, INTENSITY, ABUNDANCE, newABUNDANCE, PG.Quantity) |> # only using PG.Quantity for protein-level data. Drop it later.
+    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, LABEL, GROUP, RUN, SUBJECT, FRACTION,
+                  originalRUN, censored, INTENSITY, ABUNDANCE, newABUNDANCE, qvalue, PG.Quantity) |> # only using PG.Quantity for protein-level data. Drop it later.
 
     dplyr::filter(INTENSITY > config$lloq, # remove out-of-spec peptides
                   INTENSITY < config$uloq)
