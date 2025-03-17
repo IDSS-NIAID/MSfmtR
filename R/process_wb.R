@@ -33,22 +33,27 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
   }
   
   # output order of protein columns
+  prot_chr <- grep('^Abundance', names(proteins), value = TRUE)
+  prot_num <- starts_with('Abundance', vars = names(proteins))
   proteins <- dplyr::select(proteins,
                             Protein, Description, Organism, nAA, `coverage%`, `mass (kDa)`,
                             Modifications,
-                            starts_with('Abundance'),
+                            prot_num[order(prot_chr)],
                             starts_with('Group Abundance'),
                             starts_with('log2FC'),
                             starts_with('pvalue'),
                             starts_with('adj.pvalue'))
 
   # output order of peptide columns
+  pep_chr <- grep('^Abundance', names(peptides), value = TRUE)
+  pep_num <- starts_with('Abundance', vars = names(peptides))
   peptides <- dplyr::select(peptides,
                             PROTEIN, PEPTIDE, FEATURE,
                             Modification,
-                            starts_with('Abundance'),
+                            pep_num[order(pep_chr)],
                             starts_with('Group Abundance'),
-                            starts_with('cv'))
+                            starts_with('cv'),
+                            starts_with('qvalue'))
 
   # fix a bug in 63456e without rerunning the whole thing
   names(proteins) <- str_replace_all(names(proteins), '  ', ' ')
