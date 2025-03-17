@@ -4,7 +4,6 @@
 #' @param data MSstats formatted data
 #' @param config list of configuration parameters
 #' @param save_intermediate logical save intermediate data
-#' @param peptide_rollup_fun function to use for rolling up peptide data to the elution group level. Default is median.
 #' @param ... additional arguments to pass to `updt_config`
 #'
 #' @details This function processes MSstats formatted data and returns peptides ready for ProtResDash. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
@@ -23,9 +22,7 @@
 #' @importFrom stats median sd vcov
 #' @importFrom stringr fixed str_replace_all
 #' @importFrom tidyr pivot_wider
-process_peptides <- function(data, config, save_intermediate = TRUE,
-                             peptide_rollup_fun = function(x) median(x, na.rm = TRUE),
-                             ...)
+process_peptides <- function(data, config, save_intermediate = TRUE, ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -149,6 +146,7 @@ process_peptides <- function(data, config, save_intermediate = TRUE,
     summarize(l = length(unique(qvalue)),
               qvalue = ifelse(l != 1, NA, map_dbl(qvalue, ~ mean(.x, na.rm = TRUE)))) |>
     ungroup() |>
+    select(-l) |>
 
     # pivot wider to one row per peptide
     pivot_wider(names_from = id, values_from = c(INTENSITY, qvalue)) |>

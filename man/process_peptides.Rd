@@ -5,13 +5,7 @@
 \title{process_peptides
 Process peptides from raw data}
 \usage{
-process_peptides(
-  data,
-  config,
-  save_intermediate = TRUE,
-  peptide_rollup_fun = function(x) median(x, na.rm = TRUE),
-  ...
-)
+process_peptides(data, config, save_intermediate = TRUE, ...)
 }
 \arguments{
 \item{data}{MSstats formatted data}
@@ -19,8 +13,6 @@ process_peptides(
 \item{config}{list of configuration parameters}
 
 \item{save_intermediate}{logical save intermediate data}
-
-\item{peptide_rollup_fun}{function to use for rolling up peptide data to the elution group level. Default is median.}
 
 \item{...}{additional arguments to pass to `updt_config`}
 }
