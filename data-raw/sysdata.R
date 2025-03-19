@@ -11,6 +11,7 @@ defaults <- list(
 
   # File parameters
   in_file = parse(text = "list.files(input_dir, pattern = 'tsv')"),
+  in_delim = '\t',
   out_xlsx = parse(text = "gsub('.tsv', '.xlsx', in_file, fixed = TRUE)"),
   out_sqlite = parse(text = "gsub('.tsv', '.sqlite', in_file, fixed = TRUE)"),
   sheet = parse(text = "gsub('.tsv', '', in_file, fixed = TRUE)"),

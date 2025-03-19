@@ -2,6 +2,7 @@
 #' Process raw data into MSstats format
 #'
 #' @param config list of configuration parameters
+#' @param raw data.frame of raw data. If not provided (default), `config$in_file` is loaded.
 #' @param save_intermediate logical save intermediate data
 #' @param ... other parameters passed to `updt_config`
 #'
@@ -22,7 +23,7 @@
 #' @importFrom readr read_delim
 #' @importFrom stringr fixed str_split
 #' @importFrom utils combn
-process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, ...)
+process_raw <- function(config = configure_formatR(), raw = NULL, save_intermediate = TRUE, ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -31,7 +32,7 @@ process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, 
       INTENSITY <- originalRUN <- LABEL <- LogIntensities <- MissingPercentage <- more50missing <-
       newABUNDANCE <- NumImputedFeature <- NumMeasuredFeature <- PEPTIDE <- PG.ProteinAccessions <-
       PG.Quantity <- PROTEIN <- RUN <- R.Condition <- R.FileName <- R.Replicate <- SUBJECT <-
-      TotalGroupMeasurements <- TRANSITION <- NULL
+      TotalGroupMeasurements <- TRANSITION <- F.ExcludedFromQuantification <- NULL
 
   # update config with parameters
   config <- updt_config(config, ...)
@@ -51,14 +52,19 @@ process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, 
     }
   }
 
-  # contaminants
+  # Load the data
+  if(is.null(raw))
+  {
+    raw <- with(config, file.path(input_dir, in_file)) |>
+      read_delim(delim = config$in_delim, col_names = TRUE, show_col_types = FALSE)
+  }
+
+  # filter out contaminants
   contam <- readAAStringSet(config$cont_fasta)@ranges@NAMES |>
     str_split(fixed('|')) |>
     map_chr(~ .x[2])
 
-  # Load and process the data
-  raw <- with(config, file.path(input_dir, in_file)) |>
-    read_delim(delim = "\t", col_names = TRUE, show_col_types = FALSE) |>
+  raw <- raw |>
     dplyr::filter(!PG.ProteinAccessions %in% contam,
                   !grepl('Cont_', PG.ProteinAccessions, fixed = TRUE),
                   !F.ExcludedFromQuantification)
@@ -71,11 +77,11 @@ process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, 
   {
     if(!is.null(config$groups))
     {
-      config$ratios <- config$groups |>
+      ratios_upt <- config$groups |>
         combn(2, simplify = TRUE) |>
         t()
     }else{
-      config$ratios <- raw |>
+      ratios_updt <- raw |>
         dplyr::select(R.Condition) |>
         distinct() |>
         pull() |>
@@ -86,10 +92,10 @@ process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, 
     tmp <- config$ratios |>
       str_split('/')
 
-    config$ratios <- cbind(map_chr(tmp, ~ .x[1]), map_chr(tmp, ~ .x[2]))
+    ratios_updt <- cbind(map_chr(tmp, ~ .x[1]), map_chr(tmp, ~ .x[2]))
 
     # make sure these are all in raw$R.Condition
-    if(any(!config$ratios %in% raw$R.Condition))
+    if(any(!ratios_updt %in% raw$R.Condition))
       stop("Not all conditions in ratios are in the raw data")
   }
 
@@ -119,8 +125,8 @@ process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, 
     # final data object
     data <- list(FeatureLevelData = dplyr::select(FeatureLevelData, -PG.Quantity),
                  ProteinLevelData = fld_to_pld(FeatureLevelData),
-                 SummaryMethod = 'linear')
-
+                 SummaryMethod = 'linear',
+                 ratios = ratios_updt)
   }
 
   # save data
@@ -134,7 +140,6 @@ process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, 
     save(data, config_bak, file = file.path(config$output_dir, config$processed_checkpoint))
   }
 
-  config <<- config
   return(data)
 }
 
@@ -159,19 +164,21 @@ process_raw <- function(config = configure_formatR(), save_intermediate = TRUE, 
 raw_to_fld <- function(raw, format = 'MSstats', config)
 {
   # for those pesky no visible binding warnings
-  R.Replicate <- R.Condition <- R.FileName <- PG.ProteinAccessions <- PG.Quantity <- PEP.GroupingKey <-
+  if(FALSE)
+    R.Replicate <- R.Condition <- R.FileName <- PG.ProteinAccessions <- PG.Quantity <- PEP.GroupingKey <-
     EG.ModifiedSequence <- EG.PrecursorId <- FG.Quantity <-
     F.FrgIon <- F.Charge <- F.FrgLossType <- F.NormalizedPeakArea <- F.NormalizedPeakHeight <-
     Intensity_measure <- INTENSITY <- TRANSITION <- FEATURE <- PROTEIN <- PEPTIDE <- originalRUN <-
     LABEL <- GROUP <- RUN <- SUBJECT <- FRACTION <- censored <- newABUNDANCE <- ABUNDANCE <-
-    FrgIon.uid <- PEP.Quantity <- NULL
+    FrgIon.uid <- PEP.Quantity <- F.ExcludedFromQuantification <- EG.Qvalue <- qvalue <-
+    Label <- NULL
 
   if(format == 'MSstats')
   {
     # Figure out unique ID for each FrgIon (not unique)
     raw <- raw |>
       dplyr::filter(!F.ExcludedFromQuantification) |> # drop any fragments that weren't used
-      
+
       group_by(PG.ProteinAccessions, EG.PrecursorId, F.FrgIon) |>
 
       mutate(FrgIon.uid = paste(EG.PrecursorId, F.FrgIon, F.Charge, F.FrgLossType, sep = "_") |>
@@ -182,8 +189,6 @@ raw_to_fld <- function(raw, format = 'MSstats', config)
 
       # format information for FeatureLevelData at the fragment level
       mutate(TRANSITION = paste(F.FrgIon, FrgIon.uid, sep = "_") |>
-               factor(),
-             FEATURE = EG.ModifiedSequence |>
                factor())
 
 
@@ -196,6 +201,10 @@ raw_to_fld <- function(raw, format = 'MSstats', config)
       }else{
         raw <- rename(raw, Intensity_measure = F.NormalizedPeakHeight)
       }
+
+      raw <- mutate(raw,
+                    qvalue = NA,
+                    FEATURE = paste(EG.PrecursorId, TRANSITION, sep = "_"))
 
     }else{
 
@@ -217,8 +226,8 @@ raw_to_fld <- function(raw, format = 'MSstats', config)
 
         # concatenate TRANSITION and FEATURE by group
         mutate(TRANSITION = as.character(TRANSITION) |> unique() |> paste(collapse = ','),
-               FEATURE    = as.character(FEATURE   ) |> unique() |> paste(collapse = ','),
-               qvalue     = map_dbl(EG.Qvalue, ~ 
+               FEATURE    = EG.ModifiedSequence |> unique() |> paste(collapse = ','),
+               qvalue     = map_dbl(EG.Qvalue, ~
                                     {
                                       # these should all be the same, but if not, throw them out
                                       retval <- unique(.x)
@@ -244,6 +253,7 @@ raw_to_fld <- function(raw, format = 'MSstats', config)
       mutate(PROTEIN = factor(PG.ProteinAccessions),
              PEPTIDE = str_replace_all(EG.ModifiedSequence, "_", "") |> factor(),
              # TRANSITION and FEATURE are defined above
+             Label = factor('L'),                                                               ##### for label-free data, this is always 'L' - need to update this when we have a good example TMT data set
              LABEL = factor('L'),                                                               ##### for label-free data, this is always 'L' - need to update this when we have a good example TMT data set
              GROUP = factor(R.Condition),
              SUBJECT = factor(R.Replicate),
@@ -262,7 +272,7 @@ raw_to_fld <- function(raw, format = 'MSstats', config)
   # create FeatureLevelData and filter
   FeatureLevelData <- raw |>
 
-    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, LABEL, GROUP, RUN, SUBJECT, FRACTION,
+    dplyr::select(PROTEIN, PEPTIDE, TRANSITION, FEATURE, Label, LABEL, GROUP, RUN, SUBJECT, FRACTION,
                   originalRUN, censored, INTENSITY, ABUNDANCE, newABUNDANCE, qvalue, PG.Quantity) |> # only using PG.Quantity for protein-level data. Drop it later.
 
     dplyr::filter(INTENSITY > config$lloq, # remove out-of-spec peptides
@@ -286,7 +296,8 @@ raw_to_fld <- function(raw, format = 'MSstats', config)
 fld_to_pld <- function(fld)
 {
   # for those pesky no visible binding warnings
-  RUN <- PROTEIN <- originalRUN <- GROUP <- SUBJECT <- PG.Quantity <-
+  if(FALSE)
+    RUN <- PROTEIN <- originalRUN <- GROUP <- SUBJECT <- PG.Quantity <-
     TotalGroupMeasurements <- NumMeasuredFeature <- MissingPercentage <-
     more50missing <- NumImputedFeature <- LogIntensities <- INTENSITY <- NULL
 

@@ -27,7 +27,8 @@ process_peptides <- function(data, config, save_intermediate = TRUE, ...)
   # for those pesky no visible binding warnings
   if(FALSE)
     PROTEIN <- FEATURE <- GROUP <- INTENSITY <- ABUNDANCE <- id <- cv <- originalRUN <- SUBJECT <-
-      PEPTIDE <- TRANSITION <- Modification <- group <- model <- models <- group <- NULL
+      PEPTIDE <- TRANSITION <- Modification <- group <- model <- models <- group <-
+      qvalue <- l <- tmp <- NULL
 
 
   # update config and pull package defaults if needed
@@ -144,13 +145,15 @@ process_peptides <- function(data, config, save_intermediate = TRUE, ...)
     # drop any non-unique qvalues
     group_by(PROTEIN, PEPTIDE, TRANSITION, FEATURE, Modification, id, INTENSITY) |>
     summarize(l = length(unique(qvalue)),
-              qvalue = ifelse(l != 1, NA, map_dbl(qvalue, ~ mean(.x, na.rm = TRUE)))) |>
+              tmp = mean(qvalue, na.rm = TRUE)) |>
     ungroup() |>
-    select(-l) |>
+    mutate(qvalue = ifelse(l > 1, NA, tmp)) |>
+    select(-l, -tmp) |>
+    unique() |>
 
     # pivot wider to one row per peptide
     pivot_wider(names_from = id, values_from = c(INTENSITY, qvalue)) |>
-    
+
     # remove extra information in names
     dplyr::rename_with(~ str_replace_all(.x, pattern = fixed('INTENSITY_Abundance'), replacement = 'Abundance') |>
                          str_replace_all(pattern = fixed('qvalue_Abundance'), replacement = 'qvalue')) |>

@@ -5,10 +5,17 @@
 \title{process_raw
 Process raw data into MSstats format}
 \usage{
-process_raw(config = configure_formatR(), save_intermediate = TRUE, ...)
+process_raw(
+  config = configure_formatR(),
+  raw = NULL,
+  save_intermediate = TRUE,
+  ...
+)
 }
 \arguments{
 \item{config}{list of configuration parameters}
+
+\item{raw}{data.frame of raw data. If not provided (default), `config$in_file` is loaded.}
 
 \item{save_intermediate}{logical save intermediate data}
 

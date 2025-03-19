@@ -33,8 +33,8 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
   config <- updt_config(config, ...)
 
   # contrasts
-  contrasts <- matrix(0, nrow = nrow(config$ratios), ncol = length(levels(data$FeatureLevelData$GROUP)),
-                      dimnames = list(paste(config$ratios[,1], '/', config$ratios[,2]),
+  contrasts <- matrix(0, nrow = nrow(data$ratios), ncol = length(levels(data$FeatureLevelData$GROUP)),
+                      dimnames = list(paste(data$ratios[,1], '/', data$ratios[,2]),
                                       levels(data$FeatureLevelData$GROUP)))
 
   # if config$groups is defined, we will need this mapping between Group and orginalRUN
@@ -46,28 +46,28 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
   }
 
 
-  for(i in 1:nrow(config$ratios))
+  for(i in 1:nrow(data$ratios))
   {
-    if(!config$ratios[i,1] %in% levels(data$FeatureLevelData$GROUP))
+    if(!data$ratios[i,1] %in% levels(data$FeatureLevelData$GROUP))
     {
-      num <- filter(group_mapping, grepl(config$ratios[i,1], originalRUN)) |>
+      num <- filter(group_mapping, grepl(data$ratios[i,1], originalRUN)) |>
         dplyr::select(GROUP) |>
         distinct() |>
         unlist() |>
         as.character()
     }else{
-      num <- config$ratios[i,1]
+      num <- data$ratios[i,1]
     }
 
-    if(!config$ratios[i,2] %in% levels(data$FeatureLevelData$GROUP))
+    if(!data$ratios[i,2] %in% levels(data$FeatureLevelData$GROUP))
     {
-      den <- filter(group_mapping, grepl(config$ratios[i,2], originalRUN)) |>
+      den <- filter(group_mapping, grepl(data$ratios[i,2], originalRUN)) |>
         dplyr::select(GROUP) |>
         distinct() |>
         unlist() |>
         as.character()
     }else{
-      den <- config$ratios[i,2]
+      den <- data$ratios[i,2]
     }
 
     contrasts[i, num] <-  1
@@ -119,10 +119,10 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
                    Sequence = NA) |>
       dplyr::filter(!is.na(Protein))
   }
-  
+
   # get UniProt metadata for anything not in `meta`
   # manually search individual IDs here: https://www.uniprot.org/uniprotkb
-  
+
   # missing protein IDs
   proteinIDs <- data$ProteinLevelData$Protein |>
     str_split(fixed(';')) |>
@@ -137,7 +137,7 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
       dplyr::select(Entry, Protein.names, Organism, Sequence) |>
       dplyr::rename(Protein = Entry,
                     Description = Protein.names) |>
-      
+
       bind_rows(meta)
   }
 
@@ -250,10 +250,10 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
                     {
                       if(any(is.na(.x)))
                         return(NA)
-                      
+
                       if(length(.x) > 1)
                         return(.x[[2]])
-                      
+
                       .x
                     }) |>
              str_replace(' OS$', '')) |>
