@@ -5,24 +5,16 @@
 \title{process_peptides
 Process peptides from raw data}
 \usage{
-process_peptides(
-  data,
-  config,
-  merge_method = "median",
-  stage = file.path(config$output_dir, config$peptide_checkpoint),
-  save_intermediate = TRUE
-)
+process_peptides(data, config, save_intermediate = TRUE, ...)
 }
 \arguments{
 \item{data}{MSstats formatted data}
 
 \item{config}{list of configuration parameters}
 
-\item{merge_method}{character value defining the method to use for merging peptide data. Valid options are 'median', 'mean', 'lmer'.}
-
-\item{stage}{character path to checkpoint file}
-
 \item{save_intermediate}{logical save intermediate data}
+
+\item{...}{additional arguments to pass to `updt_config`}
 }
 \value{
 data frame of processed peptide data

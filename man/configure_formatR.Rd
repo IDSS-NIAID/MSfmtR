@@ -5,12 +5,21 @@
 \title{configure_formatR
 Default configuration for MSfmtR}
 \usage{
-configure_formatR(config_file = NULL, args = NULL)
+configure_formatR(
+  config_file = NULL,
+  args = NULL,
+  config_profile = "default",
+  fill_default = TRUE
+)
 }
 \arguments{
 \item{config_file}{path to a yaml file with configuration settings}
 
 \item{args}{list of arguments to override defaults}
+
+\item{config_profile}{character, name of profile to use from `config_file`}
+
+\item{fill_default}{logical, fill in default values if using a profile other than 'default'}
 }
 \value{
 list of configuration settings
@@ -18,4 +27,7 @@ list of configuration settings
 \description{
 configure_formatR
 Default configuration for MSfmtR
+}
+\details{
+See the package README at https://github.com/IDSS-NIAID/MSfmtR for a complete list of configuration settings.
 }

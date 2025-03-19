@@ -6,20 +6,20 @@
 Process raw data into MSstats format}
 \usage{
 process_raw(
-  config,
-  stage = file.path(config$output_dir, config$processed_checkpoint),
+  config = configure_formatR(),
+  raw = NULL,
   save_intermediate = TRUE,
-  preprocess = TRUE
+  ...
 )
 }
 \arguments{
 \item{config}{list of configuration parameters}
 
-\item{stage}{character path to checkpoint file}
+\item{raw}{data.frame of raw data. If not provided (default), `config$in_file` is loaded.}
 
 \item{save_intermediate}{logical save intermediate data}
 
-\item{preprocess}{logical preprocess data using MSstats}
+\item{...}{other parameters passed to `updt_config`}
 }
 \value{
 data frame of processed raw data
@@ -29,7 +29,9 @@ process_raw
 Process raw data into MSstats format
 }
 \details{
-This function processes raw data into MSstats format. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file. This also has the side effect of changing/updating `config` in the calling environment.
+This function processes raw data into an MSstats formatted object in R.
+If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
+This also has the side effect of changing/updating `config` in the calling environment.
 
-There are currently two tested functions for `convert_function`: `MSstatsConvert::SpectronauttoMSstatsFormat` and `MSfmtR::convert_spectronaut`. The `MSfmtR` version uses the abundance score from Spectronaut directly and does not perform any preprocessing.
+Any parameters that are `NULL` will be taken from the package defaults.
 }

@@ -3,147 +3,130 @@
 #'
 #' @param config_file path to a yaml file with configuration settings
 #' @param args list of arguments to override defaults
+#' @param config_profile character, name of profile to use from `config_file`
+#' @param fill_default logical, fill in default values if using a profile other than 'default'
+#'
+#' @details See the package README at https://github.com/IDSS-NIAID/MSfmtR for a complete list of configuration settings.
 #'
 #' @return list of configuration settings
 #' @export
 #' @importFrom stringr fixed str_replace
-configure_formatR <- function(config_file = NULL, args = NULL)
+configure_formatR <- function(config_file = NULL, args = NULL,
+                              config_profile = 'default', fill_default = TRUE)
 {
   if(!is.null(args$config_file))
   {
     config_file <- args$config_file
   }
 
-  # read yaml file (requires config package)
+  # read yml file (requires config package)
   if(!is.null(config_file))
   {
-    config <- config::get(file = config_file)
+    config <- config::get(file = config_file,
+                          config = config_profile)
+
+    # if we are using a different profile, fill in missing values with defaults from `config_file`
+    if(fill_default & config_profile != 'default')
+    {
+      default <- config::get(file = config_file,
+                             config = 'default')
+      for(key in names(default))
+      {
+        if(is.null(config[[key]]))
+        {
+          config[[key]] <- default[[key]]
+        }
+      }
+    }
   }else{
-    config <- list()
+    # use package defaults if no config file is provided
+    # additional defaults will be picked up when needed if they are not in config
+    config <- defaults
   }
 
   # replace any defaults with command line arguments
   if(length(args) > 0)
-    for(i in 1:length(args))
+  {
+    args$config <- config
+    config <- do.call('updt_config', args = args)
+  }
+
+  # go through and execute any remaining expressions from defaults
+  for(key in names(config))
+  {
+    if(is.expression(config[[key]]))
     {
-      config[names(args)[i]] <- args[i]
+      config[[key]] <- with(config, eval(config[[key]])) # execute in the context of config
     }
-
-  ## Directory parameters
-  if(is.null(config$input_dir))
-    config$input_dir <- '.'
-
-  if(is.null(config$fasta_dir))
-    config$fasta_dir <- '.'
-
-  if(is.null(config$output_dir))
-    config$output_dir <- '.'
-
-
-  ## File parameters
-  if(is.null(config$in_file))
-  {
-    config$in_file <- list.files(config$input_dir, pattern = 'tsv')
-
-    if(length(config$in_file) != 1)
-      stop('Expecting to find exactly 1 .tsv file in input_dir, found ', length(config$in_file))
   }
 
-  if(is.null(config$out_xlsx))
-    config$out_xlsx <- str_replace(config$in_file, fixed('.tsv'), '.xlsx')
-
-  if(is.null(config$out_sqlite))
-    config$out_sqlite <- str_replace(config$out_xlsx, fixed('.xlsx'), '.sqlite')
-
-  if(is.null(config$sheet))
-    config$sheet <- str_replace(config$out_xlsx, fixed('.xlsx'), '')
-
-
-  ## Sample parameters
-  if(is.null(config$smp_grp_rep))
-    config$smp_grp_rep <- 'R.FileName'
-
-  if(is.null(config$merge_method))
-    config$merge_method <- 'median'
-
-
-  ## Filtering parameters
-  if(is.null(config$uloq))
-    config$uloq <- Inf
-  if(is.null(config$lloq))
-    config$lloq <- 0
-  if(is.null(config$cont_fasta))
-  {
-    config$cont_fasta <- 'inst/extdata/Universal Contaminants.fasta'
-  }else if(!file.exists(file.path(config$fasta_dir, config$cont_fasta)))
-  {
-    warning('cont_fasta does not exist, using default: ', config$cont_fasta)
-    config$cont_fasta <- 'inst/extdata/Universal Contaminants.fasta'
-  }
-  if(is.null(config$max_ratio))
-    config$max_ratio <- 100
-
-
-  ## Metadata parameters
-  if(is.null(config$fasta_meta))
-  {
-    config$fasta_meta <- list.files(config$fasta_dir, pattern = 'fasta') |>
-      grep(pattern = config$cont_fasta, invert = TRUE, value = TRUE)
-  }
-  if(is.null(config$taxId))
-    config$taxId <- 9606
-
-
-  ## MSStats parameters
-  # if ratios is null, we'll fill it in after reading in the raw data
-
-  if(is.null(config$normMeasure))
-    config$normMeasure <- 'NormalizedPeakArea'
-  
-  if(is.null(config$preprocess))
-  {
-    config$preprocess <- FALSE
-  }else{
-    config$preprocess <- as.logical(config$preprocess)
-  }
-
-
-  ## Style parameters
-  if(is.null(config$protein_header_fill))
-    config$protein_header_fill <- "#A7CDF0"
-  if(is.null(config$protein_rows_fill))
-    config$protein_rows_fill <- "#DDEBF7"
-  if(is.null(config$peptide_header_fill))
-    config$peptide_header_fill <- "#F0CBA8"
-  if(is.null(config$peptide_rows_fill))
-    config$peptide_rows_fill <- "#FCE4D6"
-
-
-  ## Checkpoint parameters
+  ## Checkpoint parameters - this is due to be deprecated in a future version
   if(!is.null(config$checkpoints))
   {
-    if(config$checkpoints == 'all')
+    if(any(config$checkpoints == 'all'))
     {
       config$checkpoints <- c('xlsx', 'sql', 'processed', 'protein', 'peptide', 'wb')
-    }else{
-      config$checkpoints <- str_split(config$checkpoints, ',') |>
-        unlist()
+    }
+
+    if(any(grepl(',', config$checkpoints)))
+    {
+      config$checkpoints <- str_split(config$checkpoints, fixed(','))[[1]]
     }
   }else{
-    config$checkpoints <- c('xlsx', 'sql')
+    config$checkpoints <- defaults$checkpoints
   }
 
-  if(is.null(config$processed_checkpoint))
-    config$processed_checkpoint <- paste0(config$sheet, '_processed.RData')
+  return(config)
+}
 
-  if(is.null(config$peptide_checkpoint))
-    config$peptide_checkpoint <- paste0(config$sheet, '_peptide.RData')
 
-  if(is.null(config$protein_checkpoint))
-    config$protein_checkpoint <- paste0(config$sheet, '_protein.RData')
+#' updt_config
+#' Update configuration settings (primarily used for local changes to defaults)
+#'
+#' @param config list of configuration settings
+#' @param ... named arguments to update
+#'
+#' @details
+#' The default configuration settings can be found in the `defaults` object.
+#' This function is used to update any unspecified configuration settings with these defaults.
+#' In other words, if a value is NULL, it will be set to the default value.
+#' Settable configuration options are discussed in the package README (see https://github.com/IDSS-NIAID/MSfmtR).
+#'
+#' @importFrom methods is
+updt_config <- function(config, ...)
+{
+  updates <- list(...)
+  for(key in names(updates))
+  {
+    # update config with the new value
+    if(!is.null(updates[[key]]))
+      config[[key]] <- updates[[key]]
 
-  if(is.null(config$wb_checkpoint))
-    config$wb_checkpoint <- paste0(config$sheet, '_wb.RData')
+    # if the value is NULL, set it to the default
+    if(is.null(config[[key]]) & !is.null(defaults[[key]]))
+    {
+      if(is(defaults[[key]], 'expression'))
+      {
+        config[[key]] <- with(config, eval(defaults[[key]])) # execute in the context of config
+      }else{
+        config[[key]] <- defaults[[key]]
+      }
+    }
+  }
+  
+  # check for any remaining NULL values and fill in with defaults
+  for(key in names(defaults))
+  {
+    if(is.null(config[[key]]))
+    {
+      if(is(defaults[[key]], 'expression'))
+      {
+        config[[key]] <- with(config, eval(defaults[[key]])) # execute in the context of config
+      }else{
+        config[[key]] <- defaults[[key]]
+      }
+    }
+  }
 
   return(config)
 }
