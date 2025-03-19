@@ -3,6 +3,7 @@
 library(dplyr)
 library(stringr)
 library(readr)
+devtools::load_all()
 
 # A tibble with sample data from a simulated MS experiment as output by Spectronaut
 # There will be (total of 2 * 5 * 1 * 3 * 5 * 2 * 3 = 900) rows:
@@ -76,63 +77,78 @@ spectronaut_report <- tibble(
     rep(each = 2) |>                                         # 2 conditions
     rep(each = 5 * 2 * 3),                                   # 5 replicates, 2 * 3 fragments
   PG.ProteinGroups = PG.ProteinAccessions,
-  PG.Qvalue = 0.01 * runif(n),
-  PG.Quantity = NA,#rnorm(n, mean = 6, sd = 2) |>
-    #exp(),
+  PG.Qvalue = NA,
+  PG.Quantity = NA,
 
   PEP.GroupingKey = c('RLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCGERGFFYTP', 'RLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCGERGFFYTP', 'KTRREAEDLQVGQVELGGGPGAGSLQPLALEGSLQ', 'KRGIVEQCCTSICSLYQLENYCN', 'MALWMRLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCGE',
                       'MVHLTPEE', 'KSAVTALWGKVNVDEVGGEALG', 'KVLGAFSDGLAHLDNLKGTFATLSELHCD', 'KLHVDPENFRLLGNVLVCVLAHHFG', 'KEFTPPVQAAYQKVVAGVANALAH',
                       'RLLPPLYSLVFIFGFVGNMLVILILINC', 'KSMTDIYLLNLAISDLFFLLTVPFWAHYAAAQWDFGNTMCQLLTGLYFIGFFSGIFFIILLTID', 'RLDQAMQVTETLGMTHCCINPIIYAFVGE', 'KINVKQIAA', 'RLDQAMQVTETLGMTHCCINPIIYAFVGE') |>
     rep(each = 5 * 2 * 3) |>                                 # 5 replicates, 2 * 3 fragments
-    rep(2),                                                  # 2 conditions
+    rep(each = 2),                                           # 2 conditions
   PEP.StrippedSequence = PEP.GroupingKey,
   PEP.Quantity = NA,
 
-  EG.iRTPredicted = rgamma(n, shape = 4, scale = 10),
+  EG.iRTPredicted = NA,
   EG.Library = "directDIA™",
   EG.ModifiedSequence = c('_RLLPLLALLALWGPDPAAAFVNQHLC[Carbamidomethyl (C)]GSHLVEALYLVCGERGFFYTP_', '_RLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCGERGFFYTP_', '_KTRREAEDLQVGQVELGGGPGAGSLQPLALEGSLQ_', '_KRGIVEQCCTSICSLYQLENYCN_', '_MALWM[Oxidation (M)]RLLPLLALLALWGPDPAAAFVNQHLCGSHLVEALYLVCGE_',
                           '_MVHLTPEE_', '_KSAVTALWGKVNVDEVGGEALG_', '_KVLGAFSDGLAHLDNLKGTFATLSELHCD_', '_KLHVDPENFRLLGNVLVCVLAHHFG_', '_KEFTPPVQAAYQKVVAGVANALAH_',
                           '_RLLPPLYSLVFIFGFVGNMLVILILINC_', '_KSMTDIYLLNLAISDLFFLLTVPFWAHYAAAQWDFGNTMCQLLTGLYFIGFFSGIFFIILLTID_', '_RLDQAMQVTETLGM[Oxidation (M)]THCCINPIIYAFVGE_', '_KINVKQIAA_', '_RLDQAM[Oxidation (M)]QVTETLGMTHCCINPIIYAFVGE_') |>
     rep(each = 5 * 2* 3) |>                                  # 5 replicates, 2 * 3 fragments
-    rep(2),                                                  # 2 conditions
+    rep(each = 2),                                           # 2 conditions
   EG.PrecursorId = paste0(EG.ModifiedSequence, sample(c(".2", ".3"), n, replace = TRUE, prob = c(1,2))),
-  EG.Qvalue = 0.01 * runif(n),
 
   FG.Charge = sample(1:3, n, replace = TRUE, prob = 3:1),
   FG.Id = EG.PrecursorId,
-  FG.PrecMz = rnorm(n, mean = 600, sd = 100),
+  FG.PrecMz = NA,
   FG.Quantity = NA,
 
   F.Charge = sample(1:3, n, replace = TRUE, prob = 3:1),
   F.FrgIon = paste0(sample(c('y', 'b', 'p'), n, replace = TRUE, prob = 3:1),
                     sample(1:5, n, replace = TRUE, c(3,3,2,2,1))),
-  F.FrgLossType = rep("noloss", n),
-  F.FrgMz = exp(rnorm(n, mean = 6.5, sd = 0.35)),
-  F.FrgNum = substr(F.FrgIon, 2, 2) |> as.integer(),
-  F.FrgType = substr(F.FrgIon, 1, 1),
-  F.ExcludedFromQuantification = rep(FALSE, n),
-  F.NormalizedPeakArea = 10^(rnorm(n, mean = 8, sd = 1.5)),
-  F.NormalizedPeakHeight = 10^(log10(F.NormalizedPeakArea) + rnorm(n, mean = 3, sd = 2)),
-  F.PeakArea = exp(log(F.NormalizedPeakArea) + rnorm(n, mean = 0, sd = 0.3)),
-  F.PeakHeight = exp(log(F.NormalizedPeakHeight) + rnorm(n, mean = 0, sd = 0.3))
-) |>
+  F.FrgLossType = rep("noloss", n)) |>
+
+  unique() |>
+
+
+  # Fragment quantities
+
+  mutate(F.FrgMz = exp(rnorm(n(), mean = 6.5, sd = 0.35)),
+         F.FrgNum = substr(F.FrgIon, 2, 2) |> as.integer(),
+         F.FrgType = substr(F.FrgIon, 1, 1),
+         F.ExcludedFromQuantification = rep(FALSE, n()),
+         F.NormalizedPeakArea = 10^(rnorm(n(), mean = 8, sd = 1.5)),
+         F.NormalizedPeakHeight = 10^(log10(F.NormalizedPeakArea) + rnorm(n(), mean = 3, sd = 2)),
+         F.PeakArea = exp(log(F.NormalizedPeakArea) + rnorm(n(), mean = 0, sd = 0.3)),
+         F.PeakHeight = exp(log(F.NormalizedPeakHeight) + rnorm(n(), mean = 0, sd = 0.3))) |>
+
+
+  # Fragment Group quantities
 
   group_by(R.FileName, PG.ProteinAccessions, PEP.GroupingKey, EG.ModifiedSequence, EG.PrecursorId) |>
-  mutate(FG.Quantity = tukey_biweight_mean(F.NormalizedPeakHeight)) |>
+  mutate(FG.Quantity = tukey_biweight_mean(F.NormalizedPeakHeight),
+         FG.PrecMz = rnorm(1, mean = 600, sd = 100),
+         EG.iRTPredicted = rgamma(1, shape = 4, scale = 10)) |>
   ungroup() |>
+
+
+  # Peptide quantities
 
   group_by(R.FileName, PG.ProteinAccessions, PEP.GroupingKey, EG.ModifiedSequence) |>
-  mutate(PEP.Quantity = median(FG.Quantity)) |> # this isn't how Spectronaut does it, but it's close enough for made up data
+  mutate(PEP.Quantity = median(FG.Quantity), # this isn't how Spectronaut does it, but it's close enough for made up data
+         EG.Qvalue = 0.01 * runif(1)) |>
   ungroup() |>
 
+
+  # Protein Group quantities
+
   group_by(R.FileName, PG.ProteinAccessions) |>
-  mutate(PG.Quantity = median(PEP.Quantity)) |> # this isn't how Spectronaut does it, but it's close enough for made up data
+  mutate(PG.Quantity = median(PEP.Quantity), # this isn't how Spectronaut does it, but it's close enough for made up data
+         PG.Qvalue = 0.01 * runif(n())) |>
   ungroup()
+
 
 # repository root
 root <- here::here()
 
 # save to ext data
 write_tsv(spectronaut_report, file.path(root, "inst", "extdata", "spectronaut_report.tsv"))
-
-# spectronaut_report <- read_delim(file.path(root, "inst", "extdata", "spectronaut_report.tsv"), delim = "\t")
