@@ -105,3 +105,102 @@ check_missingness_num <- function(dat, cols, prop_good = 1, llod = 0, ...)
 
   return(retval)
 }
+
+
+#' filter_completeness
+#'
+#' Filter specified columns based on completeness for each condition.
+#'
+#' @param dat data.frame to filter
+#' @param cols Integer, columns to filter
+#' @param filter_cols Integer, columns of `dat` with missingness information (see Details).
+#' @param conditions Character vector specifying conditions. By default we assume names of `filter_cols` are the conditions prepended with "drop_".
+#' @param ratio Logical value indicating whether the columns to be filtered are ratio statistics, as ratio statistics are calculated from two conditions and non-ratio statistics only pertain to one.
+#' @param max_ratio Numeric vector indicating the maximum ratio to return for each column. Anything above this (or below `1/max_ratio`) will be truncated at the limit. If a single value is provided, it is used for all columns. If a vector is provided, it must be the same length as `cols`. (ignored when `ratio` is FALSE)
+#' @param name_with Function for naming new, filtered columns.
+#'
+#' @details
+#' This function filters the specified columns based on the completeness of the data, replacing filtered values with `NA`.
+#' The `filter_cols` argument specifies the columns of `dat` that contain missingness information (e.g. from `check_missingness()`).
+#' These columns should be logical vectors with `TRUE` indicating too much missingness and that row should be filtered for the specified condition.
+#' Also, `filter_cols` should correspond directly to the values in `conditions`, with one condition per column.
+#'
+#' @return data frame with filtered data.
+#' @export
+#' @importFrom dplyr filter mutate select starts_with
+#' @importFrom stringr str_replace str_split
+#' @importFrom tidyr pivot_longer pivot_wider
+filter_completeness <- function(dat, cols, filter_cols,
+                                conditions = gsub('drop_', '', names(dat)[filter_cols]),
+                                ratio = FALSE, max_ratio = Inf,
+                                name_with = function(x) str_replace(x, ":", " (Filtered):"))
+{
+  # check length of cols
+  if(length(cols) == 0)
+  {
+    warning("Skipping filtering, no columns specified")
+    return(dat)
+  }
+
+  # check length of filter_cols
+  if(length(max_ratio) == 1)
+    max_ratio <- rep(max_ratio, length(cols))
+
+  if(length(max_ratio) != length(cols))
+  {
+    stop("Length of max_ratio must be 1 or the same length as cols")
+  }
+
+  # filter cols
+  for(i in 1:length(cols))
+  {
+    # figure out which conditions we are filtering for
+    j <- map_lgl(conditions, ~ grepl(.x, names(dat)[cols[i]])) |>
+      which()
+
+    if(ratio)
+    {
+      # check that we have exactly two matches
+      if(length(j) != 2)
+      {
+        warning("Incorrect number of matches for ", names(dat)[cols[i]], " in conditions - expecting 2 - skipping")
+        next
+      }
+
+      # perform filtering
+      # for ratios we need to check both conditions
+      # if either is good, we keep the value
+      # if only one is good, this usually means the observed ratio is either 0 or Inf and we will truncate it later
+      dat$new <- ifelse(dat[[ filter_cols[j[1]] ]] & dat[[ filter_cols[j[2]] ]],
+                        NA, dat[[ cols[i] ]])
+
+      # perform ratio truncation
+      # if the ratio is too large, set it to the max_ratio
+      dat$new <- ifelse(dat$new > max_ratio[i], max_ratio[i], dat$new)
+
+      # if the ratio is too small, set it to 1/max_ratio
+      dat$new <- ifelse(dat$new < 1/max_ratio[i], 1/max_ratio[i], dat$new)
+
+    }else{
+      # check that we have exactly one match
+      if(length(j) == 0)
+      {
+        warning("No match for ", names(dat)[cols[i]], " in conditions - skipping")
+        next
+      }
+
+      if(length(j) > 1)
+      {
+        warning("Multiple matches for ", names(dat)[cols[i]], " in conditions - skipping")
+        next
+      }
+
+      # perform filtering
+      dat$new <- ifelse(dat[[ filter_cols[j] ]], NA, dat[[ cols[i] ]])
+    }
+
+    names(dat)[which(names(dat) == 'new')] <- name_with(names(dat)[cols[i]])
+  }
+
+  return(dat)
+}
