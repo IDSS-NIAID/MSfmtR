@@ -6,16 +6,25 @@
 #' @param config list of configuration parameters
 #' @param save_intermediate logical save intermediate data
 #' @param n_proteins integer number of proteins to process (use a small number to test output prior to running a large data set)
-#' @param ... additional arguments passed to `updt_config`
+#' @param wb an existing workbook object (optional). If provided a new sheet will be added to the existing workbook with the name specified by the `sheet` configuration parameter.
+#' @param sort_cols logical sort columns, assuming `proteins` and `peptides` are coming from `process_proteins` and `process_peptides`. If FALSE the columns will be in the order they were provided.
+#' @param protein_alignment character, `proteins` column name to use for alignment. Default is to align `proteins$Modifications` with `peptides$Modification` in the excel worksheet (i.e. default: "Modifications").
+#' @param peptide_alignment character, `peptides` column name to use for alignment. Default is to align `proteins$Modifications` with `peptides$Modification` in the excel worksheet (i.e. default: "Modification").
+#' @param protein_pid character, column of `proteins` containing protein IDs. Default is "Protein".
+#' @param peptide_pid character, column of `peptides` containing protein IDs. Default is "PROTEIN".
+#' @param peptide_sep character, separator for protein accession numbers in `peptides`, for peptides with multiple possible proteins of origin. Default is ";".
+#' @param ... additional arguments passed to `updt_config`. Configuration parameters provided in this function will override those in `config`.
 #'
 #' @details This function processes formatted protein and peptide data and returns an excel workbook object ready for export to Excel. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
 #' @return An excel workbook object
 #' @export
 #' @importFrom dplyr tibble mutate mutate_all starts_with
 #' @importFrom openxlsx createWorkbook addWorksheet writeData groupRows addStyle createStyle
-#' @importFrom stringr str_replace_all
+#' @importFrom stringr str_replace_all str_trim
 process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
-                       n_proteins = dim(proteins)[1], ...)
+                       n_proteins = dim(proteins)[1], wb = NULL, sort_cols = TRUE,
+                       protein_alignment = 'Modifications', peptide_alignment = 'Modification',
+                       protein_pid = 'Protein', peptide_pid = 'PROTEIN', peptide_sep = ';', ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -32,78 +41,93 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
     config$sheet <- substr(config$sheet, 1, 31)
   }
   
-  # output order of protein columns
-  prot_chr <- grep('^Abundance', names(proteins), value = TRUE)
-  prot_num <- starts_with('Abundance', vars = names(proteins))
-  proteins <- dplyr::select(proteins,
-                            Protein, Description, Organism, nAA, `coverage%`, `mass (kDa)`,
-                            Modifications,
-                            prot_num[order(prot_chr)],
-                            starts_with('Group Abundance'),
-                            starts_with('log2FC'),
-                            starts_with('pvalue'),
-                            starts_with('adj.pvalue'))
-
-  # output order of peptide columns
-  pep_chr <- grep('^Abundance', names(peptides), value = TRUE)
-  pep_num <- starts_with('Abundance', vars = names(peptides))
-  peptides <- dplyr::select(peptides,
-                            PROTEIN, PEPTIDE, FEATURE,
-                            Modification,
-                            pep_num[order(pep_chr)],
-                            starts_with('Group Abundance'),
-                            starts_with('cv'),
-                            starts_with('qvalue'))
-
-  # fix a bug in 63456e without rerunning the whole thing
-  names(proteins) <- str_replace_all(names(proteins), '  ', ' ')
-
-  # make sure columns line up
-  if(any(names(proteins)[starts_with('Abundance', vars = names(proteins))] !=
-         names(peptides)[starts_with('Abundance', vars = names(peptides))]))
+  if(sort_cols)
   {
-    stop('Abundance columns do not match between proteins and peptides')
-  }
+    # output order of protein columns
+    prot_chr <- grep('^Abundance', names(proteins), value = TRUE)
+    prot_num <- starts_with('Abundance', vars = names(proteins))
+    proteins <- dplyr::select(proteins,
+                              Protein, Description, Organism, nAA, `coverage%`, `mass (kDa)`,
+                              Modifications,
+                              prot_num[order(prot_chr)],
+                              starts_with('Group Abundance'),
+                              starts_with('log2FC'),
+                              starts_with('pvalue'),
+                              starts_with('adj.pvalue'))
 
-  if(any(names(proteins)[starts_with('Group Abundance', vars = names(proteins))] !=
-         names(peptides)[starts_with('Group Abundance', vars = names(peptides))]))
-  {
-    stop('Group Abundance columns do not match between proteins and peptides')
+    # output order of peptide columns
+    pep_chr <- grep('^Abundance', names(peptides), value = TRUE)
+    pep_num <- starts_with('Abundance', vars = names(peptides))
+    peptides <- dplyr::select(peptides,
+                              PROTEIN, PEPTIDE, FEATURE,
+                              Modification,
+                              pep_num[order(pep_chr)],
+                              starts_with('Group Abundance'),
+                              starts_with('cv'),
+                              starts_with('qvalue'))
+    
+    # fix a bug in 63456e without rerunning the whole thing
+    names(proteins) <- str_replace_all(names(proteins), '  ', ' ')
+    
+    # make sure columns line up
+    if(any(names(proteins)[starts_with('Abundance', vars = names(proteins))] !=
+           names(peptides)[starts_with('Abundance', vars = names(peptides))]))
+    {
+      stop('Abundance column order does not match between proteins and peptides')
+    }
+    
+    if(any(names(proteins)[starts_with('Group Abundance', vars = names(proteins))] !=
+           names(peptides)[starts_with('Group Abundance', vars = names(peptides))]))
+    {
+      stop('Group Abundance column order does not match between proteins and peptides')
+    }
   }
 
 
   # figure out which columns contain modifications
-  prot_mod_col <- which(names(proteins) == 'Modifications')
-  pep_mod_col <- which(names(peptides) == 'Modification')
+  prot_mod_col <- which(names(proteins) == protein_alignment)
+  pep_mod_col <- which(names(peptides) == peptide_alignment)
 
-  # infer number of columns to indent peptides (account for dropping PROTEIN column from peptides)
-  peptide_indent <- prot_mod_col - pep_mod_col + 2
+  # infer number of columns to indent peptides       (account for dropping PROTEIN column from peptides)
+  peptide_indent <- prot_mod_col - pep_mod_col + 1 + ('PROTEIN' %in% names(peptides))
 
   # # connect to the database
   # con <- dbConnect(SQLite(), dbname = with(config, file.path(output_dir, out_sqlite)))
 
   # create a new workbook
-  wb <- createWorkbook()
+  if(is.null(wb))
+    wb <- createWorkbook()
 
   addWorksheet(wb, config$sheet)
 
   # keep track of what row we're on
   nextRow <- 1
 
+  # how many peptide rows are we expecting?
+  n_peptide_rows <- peptides[[peptide_pid]] |>
+    str_split(pattern = peptide_sep) |>
+    map_int(~ sum(str_trim(.x) %in% proteins[[protein_pid]])) |>
+    sum()
+  
   # keep track of where we put things
   # (first row is protein_headers,
   #  one row for each protein plus a peptide header row for each protein,
   #  one row for each peptide)
-  indices <- tibble(row = 1:(1 + nrow(proteins)*2 + nrow(peptides)),
+  indices <- tibble(row = 1:(1 + nrow(proteins)*2 + n_peptide_rows),
                     protein_rows    = FALSE,
                     peptide_headers = FALSE,
                     peptide_rows    = FALSE)
 
   for(i in 1:min(n_proteins, dim(proteins)[1]))
   {
-    proteins[i,] |>
-
-      mutate(Protein = as.character(Protein)) |>
+    # start with the protein we are currently working with
+    prot_curr <- proteins[i,]
+    
+    # make sure the protein ID is a character (not a factor)
+    prot_curr[[protein_pid]] <- as.character(prot_curr[[protein_pid]])
+    
+    # write this row
+    prot_curr |>
 
       mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA
 
@@ -121,12 +145,16 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
     }
     indices$protein_rows[nextRow] <- TRUE
 
-    # add peptides
-    tmp <- filter(peptides, PROTEIN == as.character(proteins$Protein[i]))
+    # add peptides that match the current protein
+    tmp <- peptides[grepl(prot_curr[[protein_pid]], peptides[[peptide_pid]]),]
+
+    # this is the default for Spectronaut output, but not for PD
+    # a little hacky, so we should revisit this at a later point
+    if('PROTEIN' %in% names(tmp))
+      tmp$PROTEIN <- NULL
 
     tmp |>
-      dplyr::select(-PROTEIN) |>
-
+      
       mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA
 
       writeData(wb = wb,
