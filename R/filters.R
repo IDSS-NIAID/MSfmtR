@@ -44,6 +44,7 @@
 #' check_missingness(dat, 2:5, prop_good = 0.6, llod = 1e6)
 #'
 #' @export
+#' @importFrom stats na.omit
 check_missingness <- function(dat, cols, ...)
 {
   # check if the columns are numeric or character

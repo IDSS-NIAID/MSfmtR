@@ -1,12 +1,14 @@
 # MSfmtR
 
 
-See test files for an example workflow (need to include an example
+See test files for a example workflows (need to include an example
 here…). The configuration details are below.
 
 ## Configuration
 
-### Defaults
+### PD Filtering Defaults
+
+### Spectronaut DIA Defaults
 
 Any configuration options not defined in the yaml file will be set to
 the package defaults. The default values are:
@@ -71,7 +73,7 @@ the package defaults. The default values are:
     FALSE).
   - `format`: character, format of data (see `?raw_to_fld` for options,
     default: ‘MSstats’).
-- Style parameters
+- Formatting parameters
   - `protein_header_fill`: character, color for protein header rows in
     excel output (default: “\#A7CDF0”).
   - `protein_rows_fill`: character, color for prtein rows in excel

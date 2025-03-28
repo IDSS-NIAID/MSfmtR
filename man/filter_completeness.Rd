@@ -8,8 +8,10 @@ filter_completeness(
   dat,
   cols,
   filter_cols,
+  conditions = gsub("drop_", "", names(dat)[filter_cols]),
   ratio = FALSE,
-  conditions = gsub("drop_", "", names(dat)[filter_cols])
+  max_ratio = Inf,
+  name_with = function(x) str_replace(x, ":", " (Filtered):")
 )
 }
 \arguments{
@@ -19,18 +21,23 @@ filter_completeness(
 
 \item{filter_cols}{Integer, columns of `dat` with missingness information (see Details).}
 
-\item{ratio}{Logical value indicating whether the columns to be filtered are ratios}
+\item{conditions}{Character vector specifying conditions. By default we assume names of `filter_cols` are the conditions prepended with "drop_".}
 
-\item{conditions}{Character vector specifying conditions. By default it will assume names of `filter_cols` are the conditions prepended with "drop_".}
+\item{ratio}{Logical value indicating whether the columns to be filtered are ratio statistics, as ratio statistics are calculated from two conditions and non-ratio statistics only pertain to one.}
+
+\item{max_ratio}{Numeric vector indicating the maximum ratio to return for each column. Anything above this (or below `1/max_ratio`) will be truncated at the limit. If a single value is provided, it is used for all columns. If a vector is provided, it must be the same length as `cols`. (ignored when `ratio` is FALSE)}
+
+\item{name_with}{Function for naming new, filtered columns.}
 }
 \value{
-data frame with filtered data
+data frame with filtered data.
 }
 \description{
 Filter specified columns based on completeness for each condition.
 }
 \details{
-This function filters the specified columns based on the completeness of the data.
+This function filters the specified columns based on the completeness of the data, replacing filtered values with `NA`.
 The `filter_cols` argument specifies the columns of `dat` that contain missingness information (e.g. from `check_missingness()`).
 These columns should be logical vectors with `TRUE` indicating too much missingness and that row should be filtered for the specified condition.
+Also, `filter_cols` should correspond directly to the values in `conditions`, with one condition per column.
 }
