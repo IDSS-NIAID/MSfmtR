@@ -16,6 +16,7 @@
 #' @param ... additional arguments passed to `updt_config`. Configuration parameters provided in this function will override those in `config`.
 #'
 #' @details This function processes formatted protein and peptide data and returns an excel workbook object ready for export to Excel. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
+#' 
 #' @return An excel workbook object
 #' @export
 #' @importFrom dplyr tibble mutate mutate_all starts_with
@@ -41,6 +42,16 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
     config$sheet <- substr(config$sheet, 1, 31)
   }
   
+  # check that alignment parameters are characters
+  # if they provided a column number, convert to character
+  if(is.numeric(protein_alignment))
+    protein_alignment <- names(proteins)[protein_alignment]
+  
+  if(is.numeric(peptide_alignment))
+    peptide_alignment <- names(peptides)[peptide_alignment]
+  
+  
+  # sort columns?
   if(sort_cols)
   {
     # output order of protein columns

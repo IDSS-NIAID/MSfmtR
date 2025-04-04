@@ -156,7 +156,7 @@ filter_completeness <- function(dat, cols, filter_cols,
   for(i in 1:length(cols))
   {
     # figure out which conditions we are filtering for
-    j <- map_lgl(conditions, ~ grepl(.x, names(dat)[cols[i]])) |>
+    j <- map_lgl(conditions, ~ grepl(.x, names(dat)[cols[i]], fixed = TRUE)) |>
       which()
 
     if(ratio)
