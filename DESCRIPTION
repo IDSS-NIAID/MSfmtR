@@ -9,6 +9,7 @@ BiocViews:
 Imports:
   Biostrings,
   config,
+  devtools,
   dplyr,
   lme4,
   methods,

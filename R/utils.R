@@ -19,3 +19,31 @@ tukey_biweight_mean <- function(x, c = 4.685) { # c is the tuning constant
   w <- ifelse(abs(u) < 1, (1 - u^2)^2, 0)
   sum(w * x) / sum(w)
 }
+
+#' load_MSfmtR
+#'
+#' Load a specific version of MSfmtR
+#'
+#' @param lib.loc Character, specifying the location of a local library to use for installation (i.e. to avoid overwriting the system-wide installation)
+#' @param commit Character, specifying the GitHub commit to use
+#'
+#' @return Logical value indicating the correct version of the package was successfully loaded
+#' @export
+#' @importFrom devtools install_github
+load_MSfmtR <- function(lib.loc, commit)
+{
+  # this is where we expect the installed DESCRIPTION file to be located
+  description <- file.path(lib.loc, 'MSfmtR', 'DESCRIPTION')
+
+  # check if we have the correct version installed
+  if(!file.exists(description)) # if there is no DESCRIPTION file, it isn't installed where we want it
+  {
+    devtools::install_github('IDSS-NIAID/MSfmtR', ref = commit, lib = lib.loc)
+  }
+  if(read.dcf(description)[,'GithubSHA1'] != commit) # if the commit is different, install
+  {
+    devtools::install_github('IDSS-NIAID/MSfmtR', ref = commit, lib = lib.loc)
+  }
+
+  require(MSfmtR, lib.loc = lib.loc)
+}
