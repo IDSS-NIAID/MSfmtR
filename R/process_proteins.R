@@ -126,7 +126,9 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
   # missing protein IDs
   proteinIDs <- data$ProteinLevelData$Protein |>
     str_split(fixed(';')) |>
-    unlist()
+    unlist() |>
+    unique()
+  
   proteinIDs <- proteinIDs[!proteinIDs %in% meta$Protein]
 
   if(length(proteinIDs) > 0)
