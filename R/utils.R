@@ -38,11 +38,19 @@ load_MSfmtR <- function(lib.loc, commit)
   # check if we have the correct version installed
   if(!file.exists(description)) # if there is no DESCRIPTION file, it isn't installed where we want it
   {
-    devtools::install_github('IDSS-NIAID/MSfmtR', ref = commit, lib = lib.loc)
+    update_install <- TRUE
+  }else if(read.dcf(description)[,'GithubSHA1'] != commit) # if the commit is different, install
+  {
+    update_install <- TRUE
   }
-  if(read.dcf(description)[,'GithubSHA1'] != commit) # if the commit is different, install
+
+  if(update_install)
   {
     devtools::install_github('IDSS-NIAID/MSfmtR', ref = commit, lib = lib.loc)
+
+    # double check that we didn't install over the top of an already-loaded version
+    if('package:MSfmtR' %in% search())
+      warning('MSfmtR is already loaded. Restarting R is advised after a fresh install')
   }
 
   require(MSfmtR, lib.loc = lib.loc)
