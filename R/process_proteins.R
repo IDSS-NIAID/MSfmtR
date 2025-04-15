@@ -113,11 +113,11 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
                    Organism = map_chr(fasta_meta, ~ .x['OS']),
                    Sequence = as.character(fasta))
   }else{
-    meta <- tibble(Protein = NA,
-                   Description = NA,
-                   Organism = NA,
-                   Sequence = NA) |>
-      dplyr::filter(!is.na(Protein))
+    meta <- tibble(Protein = '',
+                   Description = '',
+                   Organism = '',
+                   Sequence = '') |>
+      dplyr::filter(Protein != '')
   }
 
   # get UniProt metadata for anything not in `meta`
