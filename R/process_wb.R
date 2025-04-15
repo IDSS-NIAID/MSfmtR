@@ -55,25 +55,25 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
   if(sort_cols)
   {
     # output order of protein columns
-    prot_chr <- grep('^Abundance', names(proteins), value = TRUE)
-    prot_num <- starts_with('Abundance', vars = names(proteins))
+    prot_num <- c(starts_with('Abundance', vars = names(proteins)),
+                  starts_with('Group Abundance', vars = names(proteins)))
+    prot_chr <- names(proteins)[prot_num]
     proteins <- dplyr::select(proteins,
                               Protein, Description, Organism, nAA, `coverage%`, `mass (kDa)`,
                               Modifications,
                               prot_num[order(prot_chr)],
-                              starts_with('Group Abundance'),
                               starts_with('log2FC'),
                               starts_with('pvalue'),
                               starts_with('adj.pvalue'))
 
     # output order of peptide columns
-    pep_chr <- grep('^Abundance', names(peptides), value = TRUE)
-    pep_num <- starts_with('Abundance', vars = names(peptides))
+    pep_num <- c(starts_with('Abundance', vars = names(peptides)),
+                 starts_with('Group Abundance', vars = names(peptides)))
+    pep_chr <- names(peptides)[pep_num]
     peptides <- dplyr::select(peptides,
                               PROTEIN, PEPTIDE, FEATURE,
                               Modification,
                               pep_num[order(pep_chr)],
-                              starts_with('Group Abundance'),
                               starts_with('cv'),
                               starts_with('qvalue'))
     
@@ -115,11 +115,11 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
   nextRow <- 1
 
   # how many peptide rows are we expecting?
-  n_peptide_rows <- peptides[[peptide_pid]] |>
-    str_split(pattern = peptide_sep) |>
-    map_int(~ sum(str_trim(.x) %in% proteins[[protein_pid]])) |>
+  n_peptide_rows <- proteins[[protein_pid]] |>
+    map_int(~ grepl(.x, peptides[[peptide_pid]]) |> 
+              sum()) |>
     sum()
-  
+
   # keep track of where we put things
   # (first row is protein_headers,
   #  one row for each protein plus a peptide header row for each protein,
