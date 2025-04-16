@@ -5,7 +5,14 @@
 \title{process_proteins
 Process proteins from raw data}
 \usage{
-process_proteins(data, peptides, config, save_intermediate = TRUE, ...)
+process_proteins(
+  data,
+  peptides,
+  config,
+  save_intermediate = TRUE,
+  overwrite = FALSE,
+  ...
+)
 }
 \arguments{
 \item{data}{MSstats formatted data}
@@ -15,6 +22,8 @@ process_proteins(data, peptides, config, save_intermediate = TRUE, ...)
 \item{config}{list of configuration parameters}
 
 \item{save_intermediate}{logical save intermediate data}
+
+\item{overwrite}{logical, force `process_proteins` to run again, even when saved intermediate data already exist}
 
 \item{...}{additional arguments to pass to `updt_config`}
 }

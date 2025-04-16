@@ -42,6 +42,8 @@ load_MSfmtR <- function(lib.loc, commit)
   }else if(read.dcf(description)[,'GithubSHA1'] != commit) # if the commit is different, install
   {
     update_install <- TRUE
+  }else{
+    update_install <- FALSE
   }
 
   if(update_install)

@@ -18,6 +18,7 @@ process_wb(
   protein_pid = "Protein",
   peptide_pid = "PROTEIN",
   peptide_sep = ";",
+  overwrite = FALSE,
   ...
 )
 }
@@ -45,6 +46,8 @@ process_wb(
 \item{peptide_pid}{character, column of `peptides` containing protein IDs. Default is "PROTEIN".}
 
 \item{peptide_sep}{character, separator for protein accession numbers in `peptides`, for peptides with multiple possible proteins of origin. Default is ";".}
+
+\item{overwrite}{logical, force `process_wb` to run again, even when saved intermediate data already exist}
 
 \item{...}{additional arguments passed to `updt_config`. Configuration parameters provided in this function will override those in `config`.}
 }

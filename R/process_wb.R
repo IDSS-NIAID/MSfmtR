@@ -13,10 +13,11 @@
 #' @param protein_pid character, column of `proteins` containing protein IDs. Default is "Protein".
 #' @param peptide_pid character, column of `peptides` containing protein IDs. Default is "PROTEIN".
 #' @param peptide_sep character, separator for protein accession numbers in `peptides`, for peptides with multiple possible proteins of origin. Default is ";".
+#' @param overwrite logical, force `process_wb` to run again, even when saved intermediate data already exist
 #' @param ... additional arguments passed to `updt_config`. Configuration parameters provided in this function will override those in `config`.
 #'
 #' @details This function processes formatted protein and peptide data and returns an excel workbook object ready for export to Excel. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
-#' 
+#'
 #' @return An excel workbook object
 #' @export
 #' @importFrom dplyr tibble mutate mutate_all starts_with
@@ -25,7 +26,8 @@
 process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
                        n_proteins = dim(proteins)[1], wb = NULL, sort_cols = TRUE,
                        protein_alignment = 'Modifications', peptide_alignment = 'Modification',
-                       protein_pid = 'Protein', peptide_pid = 'PROTEIN', peptide_sep = ';', ...)
+                       protein_pid = 'Protein', peptide_pid = 'PROTEIN', peptide_sep = ';',
+                       overwrite = FALSE, ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -34,23 +36,36 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
       peptide_rows <- NULL
 
   config <- updt_config(config, ...)
-  
+
+  # if we are using checkpoints (i.e. when save_intermediate is TRUE) load and return saved data
+  checkpoint <- file.path(config$output_dir, config$wb_checkpoint)
+  if(file.exists(checkpoint) & save_intermediate == TRUE & overwrite == FALSE)
+  {
+    load(checkpoint)
+
+    paste("Loading saved data from", checkpoint) |>
+      warning()
+
+    return(wb)
+  }
+
+
   # check sheet name for length requirements
   if(nchar(config$sheet) > 31)
   {
     warning('Sheet name is too long. Truncating to 31 characters.')
     config$sheet <- substr(config$sheet, 1, 31)
   }
-  
+
   # check that alignment parameters are characters
   # if they provided a column number, convert to character
   if(is.numeric(protein_alignment))
     protein_alignment <- names(proteins)[protein_alignment]
-  
+
   if(is.numeric(peptide_alignment))
     peptide_alignment <- names(peptides)[peptide_alignment]
-  
-  
+
+
   # sort columns?
   if(sort_cols)
   {
@@ -76,17 +91,17 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
                               pep_num[order(pep_chr)],
                               starts_with('cv'),
                               starts_with('qvalue'))
-    
+
     # fix a bug in 63456e without rerunning the whole thing
     names(proteins) <- str_replace_all(names(proteins), '  ', ' ')
-    
+
     # make sure columns line up
     if(any(names(proteins)[starts_with('Abundance', vars = names(proteins))] !=
            names(peptides)[starts_with('Abundance', vars = names(peptides))]))
     {
       stop('Abundance column order does not match between proteins and peptides')
     }
-    
+
     if(any(names(proteins)[starts_with('Group Abundance', vars = names(proteins))] !=
            names(peptides)[starts_with('Group Abundance', vars = names(peptides))]))
     {
@@ -116,7 +131,7 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
 
   # how many peptide rows are we expecting?
   n_peptide_rows <- proteins[[protein_pid]] |>
-    map_int(~ grepl(.x, peptides[[peptide_pid]]) |> 
+    map_int(~ grepl(.x, peptides[[peptide_pid]]) |>
               sum()) |>
     sum()
 
@@ -133,10 +148,10 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
   {
     # start with the protein we are currently working with
     prot_curr <- proteins[i,]
-    
+
     # make sure the protein ID is a character (not a factor)
     prot_curr[[protein_pid]] <- as.character(prot_curr[[protein_pid]])
-    
+
     # write this row
     prot_curr |>
 
@@ -165,7 +180,7 @@ process_wb <- function(proteins, peptides, config, save_intermediate = TRUE,
       tmp$PROTEIN <- NULL
 
     tmp |>
-      
+
       mutate_all(~ ifelse(is.nan(.), NA, .)) |> # convert a few NaN's to NA
 
       writeData(wb = wb,

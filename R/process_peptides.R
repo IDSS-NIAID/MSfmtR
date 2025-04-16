@@ -4,6 +4,7 @@
 #' @param data MSstats formatted data
 #' @param config list of configuration parameters
 #' @param save_intermediate logical save intermediate data
+#' @param overwrite logical, force `process_peptides` to run again, even when saved intermediate data already exist
 #' @param ... additional arguments to pass to `updt_config`
 #'
 #' @details This function processes MSstats formatted data and returns peptides ready for ProtResDash. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
@@ -22,7 +23,8 @@
 #' @importFrom stats median sd vcov
 #' @importFrom stringr fixed str_replace_all
 #' @importFrom tidyr pivot_wider
-process_peptides <- function(data, config, save_intermediate = TRUE, ...)
+process_peptides <- function(data, config, save_intermediate = TRUE,
+                             overwrite = FALSE, ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -33,6 +35,18 @@ process_peptides <- function(data, config, save_intermediate = TRUE, ...)
 
   # update config and pull package defaults if needed
   config <- updt_config(config, ...)
+
+  # if we are using checkpoints (i.e. when save_intermediate is TRUE) load and return saved data
+  checkpoint <- file.path(config$output_dir, config$peptide_checkpoint)
+  if(file.exists(checkpoint) & save_intermediate == TRUE & overwrite == FALSE)
+  {
+    load(checkpoint)
+
+    paste("Loading saved data from", checkpoint) |>
+      warning()
+
+    return(peptides)
+  }
 
 
   # add sample/group information if provided
