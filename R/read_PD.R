@@ -9,7 +9,7 @@
 #' @details The input file should be an excel spreadsheet <...describe formatting...>
 #' Protein and peptide rows are written to a temporary directory and read in separately to maintain correct column types.
 #'
-#'  Configuration parameters relevant to this function include: `input_dir`, `in_file`, `sheet`.
+#'  Configuration parameters relevant to this function include: `input_dir`, `in_file`, `in_sheet`.
 #'  See `?updt_config` for more configuration details.
 #'
 #' @return A list with two data.frames, `proteins` and `peptides`
@@ -25,6 +25,7 @@ read_PD <- function(config, file = NULL, ...)
     Master <- NULL
   
   # update config
+  config <- updt_config(config, ...)
 
   # validate parameters
   if(is.null(file))

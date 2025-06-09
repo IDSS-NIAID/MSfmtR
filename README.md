@@ -8,6 +8,22 @@ here…). The configuration details are below.
 
 ### PD Filtering Defaults
 
+- Directory parameters
+  - `input_dir`: character, path to directory containing raw data
+    (default: ‘.’).
+  - `fasta_dir`: character path to directory containing fasta files
+    (default: ‘.’).
+  - `output_dir`: character, path to directory for output (default:
+    ‘.’).
+- Input file parameters
+  - `in_file`: character, name of raw data file (default:
+    `list.files(input_dir, pattern = 'xlsx')`),
+  - `in_sheet`: character, name of the sheet in the raw data file (imports the first sheet by default),
+- Sample parameters
+  - `conditions`: character, vector of the conditions to be used in the
+    analysis (default: NULL). If `conditions` is null, an attempt will be made
+    to guess the conditions from the data.
+
 ### Spectronaut DIA Defaults
 
 Any configuration options not defined in the yaml file will be set to
@@ -20,15 +36,16 @@ the package defaults. The default values are:
     (default: ‘.’),
   - `output_dir`: character, path to directory for output (default:
     ‘.’),
-- File parameters
+- Input file parameters
   - `in_file`: character, name of raw data file (default:
     `list.files(input_dir, pattern = 'tsv')`),
-  - `in_delim`: character, delimiter for raw data file (default: ’)
+  - `in_delim`: character, delimiter for raw data file (default: '\t')
+- Output file parameters
   - `out_xlsx`: character, name of excel output file (default:
     `gsub('.tsv', '.xlsx', in_file, fixed = TRUE)`).
   - `out_sqlite`: character, name of SQLite output file (default:
     `gsub('.tsv', '.sqlite', in_file, fixed = TRUE)`).
-  - `sheet`: character, name of the excel sheet (default:
+  - `sheet`: character, name of the excel sheet for output to `out_xlsx` (default:
     `gsub('.tsv', '', in_file, fixed = TRUE)`).
 - Sample parameters
   - `smp_grp_rep`: character, column name in raw data file specifying
@@ -41,13 +58,13 @@ the package defaults. The default values are:
   - `cont_fasta`: character path to fasta file containing contaminants
     (default:
     `system.file('extdata/Universal_Contaminants.fasta', package = 'MSfmtR')`),
-  - `max_ratio`: numeric, maxiumum threshold to report. Any ratio above
+  - `max_ratio`: numeric, maximum threshold to report. Any ratio above
     `max_ratio` or below `1 / max_ratio` will be truncated at this level
     (default: 100).
 - Metadata parameters
   - `fasta_meta`: character, path to fasta metadata (default:
     `list.files(fasta_dir, pattern = 'fasta') |> grep(pattern = cont_fasta, invert = TRUE, value = TRUE)`).
-  - `taxId`: character, default taxonamy ID to use for protein accession
+  - `taxId`: character, default taxonomy ID to use for protein accession
     ID lookup. (default: 9606).
 - MSStats parameters
   - `ratios`: character, vector of the contrasts to be used in the

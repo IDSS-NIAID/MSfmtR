@@ -205,3 +205,148 @@ filter_completeness <- function(dat, cols, filter_cols,
 
   return(dat)
 }
+
+#' PD_filter
+#'
+#' Function to filter PD output
+#'
+#' @param dat data.frame to filter
+#' @param cols Integer, columns to use for filtering (see Details).
+#' @param summary_cols Integer, columns of `dat` with summary data (see Details).
+#' @param conditions Character vector specifying conditions.
+#' By default we assume names of `cols` has this information (see Details).
+#' @param ratio Logical value indicating whether the summary columns to be filtered are ratio statistics, as ratio statistics are calculated from two conditions and non-ratio statistics only pertain to one.
+#' @param peakFound Logical value indicating whether abundances labeled as Peak Found should be kept (see Details).
+#' @param config Configuration object (see Details).
+#' @param ... Additional arguments and defaults defined (see <need to document defaults better>).
+#'
+#' @details
+#'
+#' @returns data.frame with filtered data.
+#'
+#' @export
+PD_filter <- function(dat, cols, summary_cols, conditions = NULL,
+                      ratio = NULL, peakFound = FALSE, config = NULL, ...)
+{
+  ##### defaults #####
+  config <- updt_config(config, ...)
+  
+  if(is.null(conditions))
+  {
+    conditions <- names(proteins)[starts_with(match = 'Abundance:', vars = names(proteins))] |>
+      str_split(pattern = 'BR\\d+, ') |>
+      map_chr(~ .x[2]) |>
+      str_trim() |>
+      unique()
+
+    warning("Conditions not provided. Using the following: ", paste(conditions, collapse = ', '))
+  }else if(!is.null(names(conditions))){
+    # if no names are provided, use the conditions as names
+    # this needs to be done differently... I'm thinking we should use a list of conditions,
+    # each of which could be a vector of condition names if the same condition is spelled
+    # differently different columns
+    warning("Names given for conditions, but not used. Time to work on that fix.")
+  }
+  
+  # << guess value for ratio if not provided >>
+  
+  
+  ##### Flags for each condition #####
+  
+  for(i in 1:length(conditions))
+  {
+    # get the column names for this condition
+    cols_sub <- cols[grep(conditions[i], names(dat)[cols], fixed = TRUE)]
+
+    # check missingness for this condition
+    dat[[paste0('drop_', conditions[i])]] <- check_missingness(dat,
+                                                               cols_sub,
+                                                               prop_good = config$prop_good,
+                                                               llod = config$lloq,
+                                                               valid_chr = config$valid_chr)
+  }
+  
+  # these are the rows we'll keep
+  keep <- (!select(dat, starts_with('drop_'))) |>
+    apply(1, any)
+  
+  
+  ##### Filter #####
+  
+  if(length(summary_cols) > 0)
+  {
+    # differentiate between log2 ratios and linear ratios
+    log2_scale <- grepl('log2', names(dat)[summary_cols])
+    
+    # filter summary columns
+    dat <- dat |>
+      
+      filter_completeness(summary_cols[ratio & !log2_scale],
+                          filter_cols = starts_with('drop_', vars = names(dat)),
+                          ratio = TRUE,
+                          max_ratio = config$max_ratio) |>
+      
+      filter_completeness(summary_cols[ratio & log2_scale],
+                          filter_cols = starts_with('drop_', vars = names(dat)),
+                          ratio = TRUE,
+                          max_ratio = log2(config$max_ratio)) |>
+      
+      filter_completeness(summary_cols[!ratio],
+                          filter_cols = starts_with('drop_', vars = names(dat)),
+                          ratio = FALSE)
+  }
+
+  retval <- select(dat, -starts_with('drop_'))[keep,]
+  
+  
+  ##### Remove Peak Found #####
+  
+  # if peakFound is FALSE, remove any Peak Found values and replace with NA
+  # also need to update ratios - keep the p-values for now
+  if(!peakFound)
+  {
+    # identify columns in `cols` that are numeric and character
+    # the character columns will be used to find "Peak Found" values
+    # and the corresponding numeric columns will be set to NA
+    # we assume the ordering is identical, but we should check that
+    is_num <- sapply(dat[,cols], is.numeric)
+    is_chr <- sapply(dat[,cols], is.character)
+    
+    if(sum(is_num) != sum(is_chr))
+    {
+      stop("Number of numeric and character columns in `cols` do not match. Try running with `peakFound=TRUE` to skip.")
+    }
+    
+    # check for "Peak Found" values in character columns
+    pkfnd <- is.na(dat[,cols[is_chr]]) |
+             dat[,cols[is_chr]] == "Peak Found"
+    
+    # set the corresponding numeric columns to NA
+    dat[,cols[is_num]][pkfnd] <- NA
+    
+    
+    # check for "Peak Found" values in summary columns
+    ratio_cols <- grepl(          'Ratio', names(dat)[summary_cols])
+    group_cols <- grepl('Group Abundance', names(dat)[summary_cols])
+    pval_cols  <- grepl(  '[Pp]-[Vv]alue', names(dat)[summary_cols])
+    
+    # identify ratio columns that need fixing
+    if(any(ratio_cols))
+    {
+      warning('ratio section needs to be finished')
+      
+      # check every possible ratio pair in conditions
+      cond_pairs <- combn(conditions, 2)
+      for(p in 1:(dim(cond_pairs)[2]))
+      {
+        
+      }
+    }
+    
+    # identify group abundance columns that need fixing
+    if(any(group_cols))
+    {
+      warning('group abundance section needs to be finished')
+    }
+  }
+}
