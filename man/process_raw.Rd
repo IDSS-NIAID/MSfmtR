@@ -9,6 +9,7 @@ process_raw(
   config = configure_formatR(),
   raw = NULL,
   save_intermediate = TRUE,
+  overwrite = FALSE,
   ...
 )
 }
@@ -18,6 +19,8 @@ process_raw(
 \item{raw}{data.frame of raw data. If not provided (default), `config$in_file` is loaded.}
 
 \item{save_intermediate}{logical save intermediate data}
+
+\item{overwrite}{logical, force `process_raw` to run again, even when saved intermediate data already exist}
 
 \item{...}{other parameters passed to `updt_config`}
 }

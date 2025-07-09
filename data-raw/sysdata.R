@@ -37,7 +37,7 @@ defaults <- list(
   preprocess = FALSE,
   format = 'MSstats',
 
-  # Style parameters
+  # Formatting parameters
   protein_header_fill = "#A7CDF0",
   protein_rows_fill = "#DDEBF7",
   peptide_header_fill = "#F0CBA8",

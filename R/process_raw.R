@@ -4,6 +4,7 @@
 #' @param config list of configuration parameters
 #' @param raw data.frame of raw data. If not provided (default), `config$in_file` is loaded.
 #' @param save_intermediate logical save intermediate data
+#' @param overwrite logical, force `process_raw` to run again, even when saved intermediate data already exist
 #' @param ... other parameters passed to `updt_config`
 #'
 #' @details This function processes raw data into an MSstats formatted object in R.
@@ -23,7 +24,8 @@
 #' @importFrom readr read_delim
 #' @importFrom stringr fixed str_split
 #' @importFrom utils combn
-process_raw <- function(config = configure_formatR(), raw = NULL, save_intermediate = TRUE, ...)
+process_raw <- function(config = configure_formatR(), raw = NULL,
+                        save_intermediate = TRUE, overwrite = FALSE, ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -36,6 +38,18 @@ process_raw <- function(config = configure_formatR(), raw = NULL, save_intermedi
 
   # update config with parameters
   config <- updt_config(config, ...)
+
+  # if we are using checkpoints (i.e. when save_intermediate is TRUE) load and return saved data
+  checkpoint <- file.path(config$output_dir, config$processed_checkpoint)
+  if(file.exists(checkpoint) & save_intermediate == TRUE & overwrite == FALSE)
+  {
+    load(checkpoint)
+
+    paste("Loading saved data from", checkpoint) |>
+      warning()
+
+    return(data)
+  }
 
 
   # figure out where contaminants file is located - if it is already a valid path we can move on

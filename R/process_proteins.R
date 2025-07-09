@@ -5,6 +5,7 @@
 #' @param peptides processed and formatted peptides data
 #' @param config list of configuration parameters
 #' @param save_intermediate logical save intermediate data
+#' @param overwrite logical, force `process_proteins` to run again, even when saved intermediate data already exist
 #' @param ... additional arguments to pass to `updt_config`
 #'
 #' @details This function processes MSstats formatted data and returns proteins ready for ProtResDash. If save_intermediate is TRUE, the processed data are also saved to the checkpoint file.
@@ -20,7 +21,8 @@
 #' @importFrom stringr fixed str_locate_all str_split str_sub_all str_length str_replace
 #' @importFrom tidyr pivot_wider
 #' @importFrom UniProt.ws UniProt.ws
-process_proteins <- function(data, peptides, config, save_intermediate = TRUE, ...)
+process_proteins <- function(data, peptides, config, save_intermediate = TRUE,
+                             overwrite = FALSE, ...)
 {
   # for those pesky no visible binding warnings
   if(FALSE)
@@ -31,6 +33,19 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
 
   # update config and pull package defaults if needed
   config <- updt_config(config, ...)
+
+  # if we are using checkpoints (i.e. when save_intermediate is TRUE) load and return saved data
+  checkpoint <- file.path(config$output_dir, config$protein_checkpoint)
+  if(file.exists(checkpoint) & save_intermediate == TRUE & overwrite == FALSE)
+  {
+    load(checkpoint)
+
+    paste("Loading saved data from", checkpoint) |>
+      warning()
+
+    return(proteins)
+  }
+
 
   # contrasts
   contrasts <- matrix(0, nrow = nrow(data$ratios), ncol = length(levels(data$FeatureLevelData$GROUP)),
@@ -113,11 +128,11 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
                    Organism = map_chr(fasta_meta, ~ .x['OS']),
                    Sequence = as.character(fasta))
   }else{
-    meta <- tibble(Protein = NA,
-                   Description = NA,
-                   Organism = NA,
-                   Sequence = NA) |>
-      dplyr::filter(!is.na(Protein))
+    meta <- tibble(Protein = '',
+                   Description = '',
+                   Organism = '',
+                   Sequence = '') |>
+      dplyr::filter(Protein != '')
   }
 
   # get UniProt metadata for anything not in `meta`
@@ -126,7 +141,9 @@ process_proteins <- function(data, peptides, config, save_intermediate = TRUE, .
   # missing protein IDs
   proteinIDs <- data$ProteinLevelData$Protein |>
     str_split(fixed(';')) |>
-    unlist()
+    unlist() |>
+    unique()
+
   proteinIDs <- proteinIDs[!proteinIDs %in% meta$Protein]
 
   if(length(proteinIDs) > 0)

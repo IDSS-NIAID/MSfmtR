@@ -11,6 +11,14 @@ process_wb(
   config,
   save_intermediate = TRUE,
   n_proteins = dim(proteins)[1],
+  wb = NULL,
+  sort_cols = TRUE,
+  protein_alignment = "Modifications",
+  peptide_alignment = "Modification",
+  protein_pid = "Protein",
+  peptide_pid = "PROTEIN",
+  peptide_sep = ";",
+  overwrite = FALSE,
   ...
 )
 }
@@ -25,7 +33,23 @@ process_wb(
 
 \item{n_proteins}{integer number of proteins to process (use a small number to test output prior to running a large data set)}
 
-\item{...}{additional arguments passed to `updt_config`}
+\item{wb}{an existing workbook object (optional). If provided a new sheet will be added to the existing workbook with the name specified by the `sheet` configuration parameter.}
+
+\item{sort_cols}{logical sort columns, assuming `proteins` and `peptides` are coming from `process_proteins` and `process_peptides`. If FALSE the columns will be in the order they were provided.}
+
+\item{protein_alignment}{character, `proteins` column name to use for alignment. Default is to align `proteins$Modifications` with `peptides$Modification` in the excel worksheet (i.e. default: "Modifications").}
+
+\item{peptide_alignment}{character, `peptides` column name to use for alignment. Default is to align `proteins$Modifications` with `peptides$Modification` in the excel worksheet (i.e. default: "Modification").}
+
+\item{protein_pid}{character, column of `proteins` containing protein IDs. Default is "Protein".}
+
+\item{peptide_pid}{character, column of `peptides` containing protein IDs. Default is "PROTEIN".}
+
+\item{peptide_sep}{character, separator for protein accession numbers in `peptides`, for peptides with multiple possible proteins of origin. Default is ";".}
+
+\item{overwrite}{logical, force `process_wb` to run again, even when saved intermediate data already exist}
+
+\item{...}{additional arguments passed to `updt_config`. Configuration parameters provided in this function will override those in `config`.}
 }
 \value{
 An excel workbook object
