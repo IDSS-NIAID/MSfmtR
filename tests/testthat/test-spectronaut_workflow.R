@@ -20,6 +20,7 @@ test_that("Specronaut workflow with raw input", {
 test_that("Specronaut workflow with no peptide roll up", {
 
   config <- configure_formatR(args = list(input_dir = system.file('extdata', package = 'MSfmtR'),
+                                          in_file = 'O75475.tsv',
                                           fasta_dir = system.file('extdata', package = 'MSfmtR'),
                                           peptide_summary = 'none'))
 
@@ -47,6 +48,7 @@ test_that("Specronaut workflow with no peptide roll up", {
 test_that("Specronaut workflow with peptide roll up", {
 
   config <- configure_formatR(args = list(input_dir = system.file('extdata', package = 'MSfmtR'),
+                                          in_file = 'O75475.tsv',
                                           fasta_dir = system.file('extdata', package = 'MSfmtR'),
                                           peptide_summary = 'PEP'))
 
